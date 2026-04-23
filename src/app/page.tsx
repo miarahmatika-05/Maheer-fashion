@@ -1,8 +1,8 @@
 "use client";
 import { useState, useMemo, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { fetchProducts, fetchRecentTransactions, fetchDashboardStats } from '@/lib/supabaseService';
-import { Product, Transaction } from '@/types';
+import { fetchProducts, fetchRecentTransactions, fetchDashboardStats, processCheckout } from '@/lib/supabaseService';
+import { Product, Transaction, CartItem } from '@/types';
 import { 
   LayoutDashboard, 
   Package, 
@@ -27,6 +27,10 @@ import {
   HeartHandshake,
   FileText,
   Plus,
+  Minus,
+  Trash2,
+  Search,
+  CheckCircle,
   BookOpen,
   Wallet
 } from 'lucide-react';
@@ -62,6 +66,7 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
+import { ProductFormModal } from '@/components/ProductFormModal';
 import { cn } from '@/lib/utils';
 import { 
   DUMMY_PRODUCTS, 
@@ -76,6 +81,7 @@ const COLORS = ['#5B7C99', '#D1B6A8', '#A3B18A', '#D9C5B2', '#B8B5D0'];
 export default function App() {
   const [activeTab, setActiveTab] = useState('overview');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [supabaseStatus, setSupabaseStatus] = useState<'connected' | 'error' | 'idle'>('idle');
   
   const [products, setProducts] = useState<Product[]>([]);
@@ -86,7 +92,7 @@ export default function App() {
   useEffect(() => {
     async function checkSupabase() {
       try {
-        const { error } = await supabase.from('products').select('count', { count: 'exact', head: true });
+        const { error } = await supabase.from('produk').select('count', { count: 'exact', head: true });
         if (error) throw error;
         setSupabaseStatus('connected');
       } catch (err) {
@@ -142,13 +148,76 @@ export default function App() {
     return baseStats;
   }, [dbStats]);
 
+  const handleProductAdded = (newProduct: Product) => {
+    setProducts((prev) => [newProduct, ...prev]);
+    setIsProductModalOpen(false);
+  };
+
+  // Cart States
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [posChannel, setPosChannel] = useState('Offline');
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const addToCart = (product: Product) => {
+    if (product.stock <= 0) return; // Prevent adding out of stock
+    setCart(prev => {
+      const existing = prev.find(item => item.product.sku === product.sku);
+      if (existing) {
+        if (existing.quantity >= product.stock) return prev; // Cannot exceed stock
+        return prev.map(item => item.product.sku === product.sku ? { ...item, quantity: item.quantity + 1 } : item);
+      }
+      return [...prev, { product, quantity: 1, discount: 0 }];
+    });
+  };
+
+  const updateCartQty = (sku: string, delta: number) => {
+    setCart(prev => prev.map(item => {
+      if (item.product.sku === sku) {
+        const newQty = item.quantity + delta;
+        if (newQty > item.product.stock) return item; // Cannot exceed stock
+        return { ...item, quantity: Math.max(0, newQty) }; // Allow 0 to handle removal later or just use filter
+      }
+      return item;
+    }).filter(item => item.quantity > 0));
+  };
+
+  const cartSubtotal = cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+  const cartAdminFee = posChannel !== 'Offline' ? Math.floor(cartSubtotal * 0.03) : 0; // Example 3% fee for online channels
+  const cartTotal = cartSubtotal + cartAdminFee;
+
+  const handleCheckout = async () => {
+    if (cart.length === 0) return;
+    setIsCheckingOut(true);
+    try {
+      const newTrx = await processCheckout(cart, posChannel, cartSubtotal, cartAdminFee);
+      // Immediately reflect updates in local state
+      setProducts(prev => prev.map(p => {
+        const cartItem = cart.find(c => c.product.sku === p.sku);
+        if (cartItem) return { ...p, stock: p.stock - cartItem.quantity };
+        return p;
+      }));
+      setTransactions(prev => [newTrx, ...prev]);
+      
+      setCheckoutSuccess(true);
+      setCart([]);
+      setTimeout(() => setCheckoutSuccess(false), 3000);
+    } catch (error) {
+      console.error('Checkout failed:', error);
+      alert('Checkout failed! ' + (error as any).message);
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
   const displayProducts = products.length > 0 ? products : DUMMY_PRODUCTS;
   const displayTransactions = transactions.length > 0 ? transactions : DUMMY_TRANSACTIONS;
 
   const inventoryAnalysis = useMemo(() => {
     return displayProducts.map(p => {
-      const sold = p.initialStock - p.stock;
-      const str = (sold / p.initialStock) * 100;
+      const sold = p.initial_stock - p.stock;
+      const str = (sold / p.initial_stock) * 100;
       return { ...p, sold, str };
     }).sort((a, b) => a.str - b.str);
   }, [displayProducts]);
@@ -407,7 +476,7 @@ export default function App() {
                             <TableCell className="font-mono text-xs font-bold">{trx.id}</TableCell>
                             <TableCell className="text-sm">{trx.date}</TableCell>
                             <TableCell><Badge variant="outline">{trx.channel}</Badge></TableCell>
-                            <TableCell className="text-right font-bold">Rp {trx.totalRevenue.toLocaleString('id-ID')}</TableCell>
+                            <TableCell className="text-right font-bold">Rp {trx.total_revenue.toLocaleString('id-ID')}</TableCell>
                             <TableCell><Badge className="bg-emerald-100 text-emerald-700 border-none">Success</Badge></TableCell>
                           </TableRow>
                         ))}
@@ -457,7 +526,7 @@ export default function App() {
                       <CardTitle className="font-serif italic text-xl">Performance Matrix</CardTitle>
                       <CardDescription>Detailed STR analysis by Size and Color combination</CardDescription>
                     </div>
-                    <Button variant="outline" size="sm" className="gap-2">
+                    <Button variant="outline" size="sm" className="gap-2 border-royal text-royal hover:bg-royal/5" onClick={() => setIsProductModalOpen(true)}>
                       <Plus className="w-4 h-4" />
                       Add New Product
                     </Button>
@@ -635,52 +704,175 @@ export default function App() {
             )}
 
             {activeTab === 'sales' && (
-              <div className="space-y-8">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="h-full flex flex-col">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                   <div>
-                    <h3 className="text-2xl font-serif font-bold italic">Sales Management</h3>
-                    <p className="text-gray-500">Track orders and generate customer invoices.</p>
+                    <h3 className="text-2xl font-serif font-bold italic">Point of Sale (Kasir)</h3>
+                    <p className="text-gray-500">Pilih produk dan selesaikan transaksi.</p>
                   </div>
-                  <Button className="bg-royal text-white gap-2">
-                    <FileText className="w-4 h-4" />
-                    Generate Sales Invoice
-                  </Button>
+                  {checkoutSuccess && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center gap-2 text-emerald-600 bg-emerald-50 px-4 py-2 rounded-lg font-medium"
+                    >
+                      <CheckCircle className="w-5 h-5" />
+                      Transaksi Berhasil Dicatat!
+                    </motion.div>
+                  )}
                 </div>
 
-                <Card className="border-none shadow-sm overflow-hidden">
-                  <CardHeader>
-                    <CardTitle className="font-serif italic text-xl">Order History</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <Table>
-                      <TableHeader className="bg-royal/5">
-                        <TableRow>
-                          <TableHead className="font-bold text-royal">Order ID</TableHead>
-                          <TableHead className="font-bold text-royal">Date</TableHead>
-                          <TableHead className="font-bold text-royal">Customer</TableHead>
-                          <TableHead className="font-bold text-royal text-right">Amount</TableHead>
-                          <TableHead className="font-bold text-royal">Action</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {displayTransactions.map((trx) => (
-                          <TableRow key={trx.id}>
-                            <TableCell className="font-mono text-xs font-bold">{trx.id}</TableCell>
-                            <TableCell className="text-sm">{trx.date}</TableCell>
-                            <TableCell className="text-sm">{trx.customerId}</TableCell>
-                            <TableCell className="text-right font-bold">Rp {trx.totalRevenue.toLocaleString('id-ID')}</TableCell>
-                            <TableCell>
-                              <Button variant="ghost" size="sm" className="text-royal gap-1">
-                                <FileText className="w-3 h-3" />
-                                Invoice
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
+                <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                  {/* Left Pane: Product Selection */}
+                  <div className="lg:col-span-2 space-y-4">
+                    <div className="relative w-full md:w-96">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input 
+                        type="text" 
+                        placeholder="Cari SKU atau Nama Produk..." 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-royal/20 focus:border-royal transition-all"
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                      {displayProducts
+                        .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.sku.toLowerCase().includes(searchQuery.toLowerCase()))
+                        .map(p => {
+                          const isInCart = cart.find(c => c.product.sku === p.sku);
+                          const currentCartQty = isInCart ? isInCart.quantity : 0;
+                          const availableStock = p.stock - currentCartQty;
+                          
+                          return (
+                            <Card 
+                              key={p.sku} 
+                              className={cn(
+                                "border-none shadow-sm overflow-hidden transition-all", 
+                                availableStock > 0 ? "hover:shadow-md cursor-pointer group" : "opacity-60 grayscale cursor-not-allowed"
+                              )}
+                              onClick={() => availableStock > 0 && addToCart(p)}
+                            >
+                              <div className="h-24 bg-royal/5 flex items-center justify-center p-4">
+                                <Package className="w-10 h-10 text-royal/20 group-hover:scale-110 transition-transform" />
+                              </div>
+                              <CardContent className="p-4">
+                                <div className="flex justify-between items-start mb-1">
+                                  <Badge variant="outline" className="text-[10px]">{p.category}</Badge>
+                                  <span className="text-xs font-bold text-royal">Rp {(p.price / 1000)}k</span>
+                                </div>
+                                <h4 className="font-bold text-sm truncate">{p.name}</h4>
+                                <p className="text-[10px] text-gray-400 font-mono mt-1">{p.sku}</p>
+                                <div className="flex items-center justify-between mt-3">
+                                  <div className="flex gap-1">
+                                    <Badge className="bg-gray-100 text-gray-600 border-none text-[10px]">{p.size}</Badge>
+                                    <Badge className="bg-gray-100 text-gray-600 border-none text-[10px]">{p.color}</Badge>
+                                  </div>
+                                  <span className={cn("text-xs font-bold", availableStock > 0 ? "text-emerald-600" : "text-rose-500")}>
+                                    Sisa: {availableStock}
+                                  </span>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Right Pane: Cart */}
+                  <Card className="border-none shadow-lg sticky top-0 flex flex-col h-[calc(100vh-12rem)]">
+                    <CardHeader className="border-b bg-gray-50/50 py-4">
+                      <CardTitle className="font-serif italic text-lg flex items-center gap-2">
+                        <ShoppingCart className="w-5 h-5" />
+                        Cart ({cart.length})
+                      </CardTitle>
+                    </CardHeader>
+                    <ScrollArea className="flex-1 p-4">
+                      {cart.length === 0 ? (
+                        <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-3 mt-10">
+                          <ShoppingCart className="w-12 h-12 opacity-20" />
+                          <p>Keranjang masih kosong</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {cart.map((item, idx) => (
+                            <motion.div 
+                              initial={{ opacity: 0, x: 20 }} 
+                              animate={{ opacity: 1, x: 0 }}
+                              key={item.product.sku} 
+                              className="flex items-center justify-between gap-3 p-3 bg-white border rounded-xl"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <h5 className="font-bold text-sm truncate">{item.product.name}</h5>
+                                <div className="flex items-center text-xs text-gray-500 gap-2 mt-1">
+                                  <span className="font-mono">{item.product.sku}</span>
+                                  <span>•</span>
+                                  <span>Rp {(item.product.price).toLocaleString()}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1 border">
+                                <button 
+                                  onClick={() => updateCartQty(item.product.sku, -1)}
+                                  className="w-6 h-6 flex items-center justify-center rounded bg-white shadow-sm hover:bg-gray-100 text-gray-600"
+                                >
+                                  {item.quantity === 1 ? <Trash2 className="w-3 h-3 text-rose-500" /> : <Minus className="w-3 h-3" />}
+                                </button>
+                                <span className="w-6 text-center text-sm font-bold">{item.quantity}</span>
+                                <button 
+                                  onClick={() => updateCartQty(item.product.sku, 1)}
+                                  disabled={item.quantity >= item.product.stock}
+                                  className="w-6 h-6 flex items-center justify-center rounded bg-white shadow-sm hover:bg-gray-100 text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      )}
+                    </ScrollArea>
+                    <div className="border-t bg-gray-50/50 p-4 space-y-4">
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Sales Channel</label>
+                        <select 
+                          value={posChannel}
+                          onChange={(e) => setPosChannel(e.target.value)}
+                          className="w-full rounded-lg border border-gray-300 p-2 text-sm focus:border-royal focus:outline-none focus:ring-1 focus:ring-royal bg-white"
+                        >
+                          <option value="Offline">Offline Store (Walk-in)</option>
+                          <option value="Shopee">Shopee</option>
+                          <option value="TikTok Shop">TikTok Shop</option>
+                          <option value="WA">WhatsApp (Direct)</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">Subtotal</span>
+                          <span className="font-bold">Rp {cartSubtotal.toLocaleString()}</span>
+                        </div>
+                        {cartAdminFee > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-500">Admin Fee (Est. 3%)</span>
+                            <span className="font-bold text-rose-500">Rp {cartAdminFee.toLocaleString()}</span>
+                          </div>
+                        )}
+                        <Separator />
+                        <div className="flex justify-between items-end">
+                          <span className="font-bold text-gray-700">Total</span>
+                          <span className="text-2xl font-bold text-royal">Rp {cartTotal.toLocaleString()}</span>
+                        </div>
+                      </div>
+
+                      <Button 
+                        className="w-full bg-royal text-white hover:bg-royal/90 py-6 text-lg rounded-xl shadow-lg shadow-royal/20"
+                        disabled={cart.length === 0 || isCheckingOut}
+                        onClick={handleCheckout}
+                      >
+                        {isCheckingOut ? 'Memproses...' : 'Proses Pembayaran'}
+                      </Button>
+                    </div>
+                  </Card>
+                </div>
               </div>
             )}
 
@@ -876,6 +1068,12 @@ export default function App() {
           </div>
         </ScrollArea>
       </main>
+
+      <ProductFormModal 
+        isOpen={isProductModalOpen} 
+        onClose={() => setIsProductModalOpen(false)} 
+        onSuccess={handleProductAdded} 
+      />
     </div>
   );
 }

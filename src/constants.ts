@@ -1,16 +1,16 @@
 import { Product, Transaction } from './types';
 
 export const DUMMY_PRODUCTS: Product[] = [
-  { id: '1', name: 'Gamis Al-Zahra', sku: 'GM-ALZ-XL-RBL', category: 'Gamis', size: 'XL', color: 'Royal Blue', stock: 12, initialStock: 50, price: 450000 },
-  { id: '2', name: 'Gamis Al-Zahra', sku: 'GM-ALZ-L-RBL', category: 'Gamis', size: 'L', color: 'Royal Blue', stock: 5, initialStock: 50, price: 450000 },
-  { id: '3', name: 'Koko Modern', sku: 'KM-MDN-L-GLD', category: 'Koko', size: 'L', color: 'Gold', stock: 25, initialStock: 100, price: 350000 },
-  { id: '4', name: 'Hijab Silk', sku: 'HJ-SLK-ALL-WHT', category: 'Hijab', size: 'All Size', color: 'White', stock: 80, initialStock: 200, price: 150000 },
+  { sku: 'GM-ALZ-XL-RBL', name: 'Gamis Al-Zahra', category: 'Gamis', size: 'XL', color: 'Royal Blue', hpp: 300000, price: 450000, stock: 12, initial_stock: 50 },
+  { sku: 'GM-ALZ-L-RBL', name: 'Gamis Al-Zahra', category: 'Gamis', size: 'L', color: 'Royal Blue', hpp: 300000, price: 450000, stock: 5, initial_stock: 50 },
+  { sku: 'KM-MDN-L-GLD', name: 'Koko Modern', category: 'Koko', size: 'L', color: 'Gold', hpp: 200000, price: 350000, stock: 25, initial_stock: 100 },
+  { sku: 'HJ-SLK-ALL-WHT', name: 'Hijab Silk', category: 'Hijab', size: 'All Size', color: 'White', hpp: 50000, price: 150000, stock: 80, initial_stock: 200 },
 ];
 
 export const DUMMY_TRANSACTIONS: Transaction[] = [
-  { id: 'TRX-101', date: '2026-04-07', channel: 'Shopee', totalRevenue: 450000, customerId: 'CUST-001' },
-  { id: 'TRX-102', date: '2026-04-07', channel: 'Offline Store', totalRevenue: 950000, customerId: 'CUST-002' },
-  { id: 'TRX-103', date: '2026-04-06', channel: 'TikTok Shop', totalRevenue: 350000, customerId: 'CUST-003' },
+  { id: 'TRX-101', date: '2026-04-07', time: '10:30:00', channel: 'Shopee', total_revenue: 450000, admin_fee: 10000, customer_id: 'CUST-001' },
+  { id: 'TRX-102', date: '2026-04-07', time: '12:15:00', channel: 'Offline', total_revenue: 950000, admin_fee: 0, customer_id: 'CUST-002' },
+  { id: 'TRX-103', date: '2026-04-06', time: '14:45:00', channel: 'TikTok Shop', total_revenue: 350000, admin_fee: 7000, customer_id: 'CUST-003' },
 ];
 
 export const SALES_TREND_DATA = [

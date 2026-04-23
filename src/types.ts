@@ -1,19 +1,29 @@
 export interface Product {
-  id: string;
-  name: string;
   sku: string;
+  name: string;
   category: string;
   size: string;
   color: string;
-  stock: number;
-  initialStock: number;
+  hpp: number;
   price: number;
+  stock: number;
+  initial_stock: number;
+  created_at?: string;
 }
 
 export interface Transaction {
   id: string;
   date: string;
+  time: string;
   channel: string;
-  totalRevenue: number;
-  customerId: string;
+  total_revenue: number;
+  admin_fee: number;
+  customer_id: string;
+  created_at?: string;
+}
+
+export interface CartItem {
+  product: Product;
+  quantity: number;
+  discount: number;
 }
