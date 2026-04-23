@@ -1,5 +1,6 @@
 "use client";
 import { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { fetchProducts, fetchRecentTransactions, fetchDashboardStats, processCheckout } from '@/lib/supabaseService';
 import { Product, Transaction, CartItem } from '@/types';
@@ -32,7 +33,13 @@ import {
   Search,
   CheckCircle,
   BookOpen,
-  Wallet
+  Wallet,
+  Loader2,
+  Printer,
+  CreditCard,
+  Banknote,
+  QrCode,
+  Tag
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -79,6 +86,10 @@ import {
 const COLORS = ['#5B7C99', '#D1B6A8', '#A3B18A', '#D9C5B2', '#B8B5D0'];
 
 export default function App() {
+  const router = useRouter();
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [session, setSession] = useState<any>(null);
+
   const [activeTab, setActiveTab] = useState('overview');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -103,6 +114,30 @@ export default function App() {
     }
     checkSupabase();
   }, []);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (!session) {
+        router.push('/login');
+      } else {
+        setIsAuthLoading(false);
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (!session) {
+        router.push('/login');
+      } else {
+        setIsAuthLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [router]);
 
   useEffect(() => {
     if (supabaseStatus === 'connected') {
@@ -156,6 +191,13 @@ export default function App() {
   // Cart States
   const [cart, setCart] = useState<CartItem[]>([]);
   const [posChannel, setPosChannel] = useState('Offline');
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
+  const [cashReceived, setCashReceived] = useState<number | ''>('');
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null);
+
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -184,14 +226,16 @@ export default function App() {
   };
 
   const cartSubtotal = cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
-  const cartAdminFee = posChannel !== 'Offline' ? Math.floor(cartSubtotal * 0.03) : 0; // Example 3% fee for online channels
-  const cartTotal = cartSubtotal + cartAdminFee;
+  const discountAmount = Math.floor(cartSubtotal * ((discountPercent || 0) / 100));
+  const cartAdminFee = posChannel !== 'Offline' ? Math.floor((cartSubtotal - discountAmount) * 0.03) : 0; 
+  const cartTotal = cartSubtotal - discountAmount + cartAdminFee;
+  const changeAmount = paymentMethod === 'Cash' && typeof cashReceived === 'number' ? cashReceived - cartTotal : 0;
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     setIsCheckingOut(true);
     try {
-      const newTrx = await processCheckout(cart, posChannel, cartSubtotal, cartAdminFee);
+      const newTrx = await processCheckout(cart, posChannel, cartSubtotal - discountAmount, cartAdminFee);
       // Immediately reflect updates in local state
       setProducts(prev => prev.map(p => {
         const cartItem = cart.find(c => c.product.sku === p.sku);
@@ -200,15 +244,22 @@ export default function App() {
       }));
       setTransactions(prev => [newTrx, ...prev]);
       
-      setCheckoutSuccess(true);
-      setCart([]);
-      setTimeout(() => setCheckoutSuccess(false), 3000);
+      setLastTransaction(newTrx);
+      setIsCheckoutModalOpen(false);
+      setShowReceipt(true);
     } catch (error) {
       console.error('Checkout failed:', error);
       alert('Checkout failed! ' + (error as any).message);
     } finally {
       setIsCheckingOut(false);
     }
+  };
+
+  const resetCart = () => {
+    setCart([]);
+    setDiscountPercent(0);
+    setCashReceived('');
+    setShowReceipt(false);
   };
 
   const displayProducts = products.length > 0 ? products : DUMMY_PRODUCTS;
@@ -225,6 +276,20 @@ export default function App() {
   const underperformingItems = useMemo(() => {
     return inventoryAnalysis.filter(item => item.str < 30);
   }, [inventoryAnalysis]);
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center">
+        <div className="w-20 h-20 bg-gold rounded-full flex items-center justify-center shadow-xl shadow-gold/20 mb-8 animate-pulse">
+          <span className="font-serif text-4xl font-bold text-royal italic">M</span>
+        </div>
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="w-6 h-6 text-royal animate-spin" />
+          <p className="text-gray-500 font-medium">Verifying access...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
@@ -247,7 +312,7 @@ export default function App() {
               </div>
             </div>
 
-            <nav className="flex-1 px-4 py-4 space-y-2">
+            <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto scrollbar-none">
               <SidebarItem 
                 icon={LayoutDashboard} 
                 label="Dashboard" 
@@ -262,7 +327,7 @@ export default function App() {
               />
               <SidebarItem 
                 icon={ShoppingBag} 
-                label="Purchasing" 
+                label="Pembelian" 
                 active={activeTab === 'purchasing'} 
                 onClick={() => setActiveTab('purchasing')} 
               />
@@ -274,7 +339,7 @@ export default function App() {
               />
               <SidebarItem 
                 icon={ShoppingCart} 
-                label="Sales" 
+                label="POS Kasir" 
                 active={activeTab === 'sales'} 
                 onClick={() => setActiveTab('sales')} 
               />
@@ -298,8 +363,8 @@ export default function App() {
                   <Users className="w-5 h-5 text-gold" />
                 </div>
                 <div className="flex-1 overflow-hidden">
-                  <p className="text-sm font-medium truncate">Admin Maheer</p>
-                  <p className="text-xs text-white/60 truncate">admin@maheer.com</p>
+                  <p className="text-sm font-medium truncate">{session?.user?.user_metadata?.full_name || 'Admin Maheer'}</p>
+                  <p className="text-xs text-white/60 truncate">{session?.user?.email || 'admin@maheer.com'}</p>
                 </div>
               </div>
               <div className="px-3 mb-4 space-y-2">
@@ -319,7 +384,14 @@ export default function App() {
                   </Badge>
                 )}
               </div>
-              <Button variant="ghost" className="w-full justify-start text-white/70 hover:text-white hover:bg-white/10 gap-3">
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start text-white/70 hover:text-white hover:bg-white/10 gap-3"
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  router.push('/login');
+                }}
+              >
                 <LogOut className="w-4 h-4" />
                 Logout
               </Button>
@@ -721,9 +793,9 @@ export default function App() {
                   )}
                 </div>
 
-                <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
                   {/* Left Pane: Product Selection */}
-                  <div className="lg:col-span-2 space-y-4">
+                  <div className="md:col-span-2 space-y-4">
                     <div className="relative w-full md:w-96">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input 
@@ -831,32 +903,82 @@ export default function App() {
                       )}
                     </ScrollArea>
                     <div className="border-t bg-gray-50/50 p-4 space-y-4">
-                      <div>
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Sales Channel</label>
-                        <select 
-                          value={posChannel}
-                          onChange={(e) => setPosChannel(e.target.value)}
-                          className="w-full rounded-lg border border-gray-300 p-2 text-sm focus:border-royal focus:outline-none focus:ring-1 focus:ring-royal bg-white"
-                        >
-                          <option value="Offline">Offline Store (Walk-in)</option>
-                          <option value="Shopee">Shopee</option>
-                          <option value="TikTok Shop">TikTok Shop</option>
-                          <option value="WA">WhatsApp (Direct)</option>
-                        </select>
+                      {/* Channels & Payment */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 block">Channel</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {['Offline', 'Shopee', 'TikTok Shop', 'WA'].map(channel => (
+                              <button
+                                key={channel}
+                                onClick={() => setPosChannel(channel)}
+                                className={cn(
+                                  "text-xs py-1.5 px-2 rounded-md border text-center transition-all",
+                                  posChannel === channel ? "bg-royal text-white border-royal shadow-sm" : "bg-white text-gray-600 border-gray-200 hover:border-royal/50"
+                                )}
+                              >
+                                {channel === 'TikTok Shop' ? 'TikTok' : channel}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 block">Payment</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {['Cash', 'QRIS', 'Transfer'].map(method => (
+                              <button
+                                key={method}
+                                onClick={() => setPaymentMethod(method)}
+                                className={cn(
+                                  "text-xs py-1.5 px-2 rounded-md border text-center transition-all flex items-center justify-center gap-1",
+                                  paymentMethod === method ? "bg-royal text-white border-royal shadow-sm" : "bg-white text-gray-600 border-gray-200 hover:border-royal/50"
+                                )}
+                              >
+                                {method === 'Cash' && <Banknote className="w-3 h-3" />}
+                                {method === 'QRIS' && <QrCode className="w-3 h-3" />}
+                                {method === 'Transfer' && <CreditCard className="w-3 h-3" />}
+                                {method}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="space-y-2">
+                      {/* Discount Input */}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Tag className="w-4 h-4 text-gray-400" />
+                          <label className="text-xs font-bold text-gray-600">Discount (%)</label>
+                        </div>
+                        <input 
+                          type="number" 
+                          min="0"
+                          max="100"
+                          value={discountPercent || ''}
+                          onChange={(e) => setDiscountPercent(Number(e.target.value))}
+                          placeholder="0"
+                          className="w-full mt-1 rounded-lg border border-gray-300 p-2 text-sm focus:border-royal focus:outline-none focus:ring-1 focus:ring-royal bg-white"
+                        />
+                      </div>
+
+                      <div className="space-y-2 pt-2">
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-500">Subtotal</span>
                           <span className="font-bold">Rp {cartSubtotal.toLocaleString()}</span>
                         </div>
+                        {discountAmount > 0 && (
+                          <div className="flex justify-between text-sm text-emerald-600">
+                            <span>Discount ({discountPercent}%)</span>
+                            <span className="font-bold">- Rp {discountAmount.toLocaleString()}</span>
+                          </div>
+                        )}
                         {cartAdminFee > 0 && (
                           <div className="flex justify-between text-sm">
-                            <span className="text-gray-500">Admin Fee (Est. 3%)</span>
+                            <span className="text-gray-500">Admin Fee (3%)</span>
                             <span className="font-bold text-rose-500">Rp {cartAdminFee.toLocaleString()}</span>
                           </div>
                         )}
-                        <Separator />
+                        <Separator className="my-2" />
                         <div className="flex justify-between items-end">
                           <span className="font-bold text-gray-700">Total</span>
                           <span className="text-2xl font-bold text-royal">Rp {cartTotal.toLocaleString()}</span>
@@ -865,16 +987,181 @@ export default function App() {
 
                       <Button 
                         className="w-full bg-royal text-white hover:bg-royal/90 py-6 text-lg rounded-xl shadow-lg shadow-royal/20"
-                        disabled={cart.length === 0 || isCheckingOut}
-                        onClick={handleCheckout}
+                        disabled={cart.length === 0}
+                        onClick={() => setIsCheckoutModalOpen(true)}
                       >
-                        {isCheckingOut ? 'Memproses...' : 'Proses Pembayaran'}
+                        Checkout Order
                       </Button>
                     </div>
                   </Card>
                 </div>
               </div>
             )}
+
+            {/* Modals for Checkout and Receipt */}
+            <AnimatePresence>
+              {isCheckoutModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]"
+                  >
+                    <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-royal text-white">
+                      <h3 className="font-serif italic text-xl font-bold">Payment Details</h3>
+                      <button onClick={() => setIsCheckoutModalOpen(false)} className="text-white/70 hover:text-white">
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                    <div className="p-6 overflow-y-auto space-y-6">
+                      <div className="flex justify-between items-center bg-royal/5 p-4 rounded-xl border border-royal/10">
+                        <span className="text-gray-600 font-medium">Total Amount</span>
+                        <span className="text-3xl font-bold text-royal">Rp {cartTotal.toLocaleString()}</span>
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="text-sm font-bold text-gray-700">Payment Method: <span className="text-royal">{paymentMethod}</span></label>
+                        
+                        {paymentMethod === 'Cash' && (
+                          <div className="space-y-4">
+                            <div>
+                              <label className="text-xs text-gray-500 mb-1 block">Amount Received (Rp)</label>
+                              <input 
+                                type="number" 
+                                value={cashReceived}
+                                onChange={(e) => setCashReceived(e.target.value ? Number(e.target.value) : '')}
+                                className="w-full text-lg p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-royal focus:border-royal transition-all"
+                                placeholder="e.g. 500000"
+                                autoFocus
+                              />
+                            </div>
+                            
+                            {typeof cashReceived === 'number' && cashReceived >= cartTotal && (
+                              <div className="flex justify-between items-center p-4 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-100">
+                                <span className="font-medium">Change Due:</span>
+                                <span className="text-xl font-bold">Rp {changeAmount.toLocaleString()}</span>
+                              </div>
+                            )}
+                            {typeof cashReceived === 'number' && cashReceived > 0 && cashReceived < cartTotal && (
+                              <div className="flex justify-between items-center p-3 bg-rose-50 text-rose-700 rounded-xl border border-rose-100 text-sm">
+                                <span className="font-medium">Insufficient funds</span>
+                                <span>Need Rp {(cartTotal - cashReceived).toLocaleString()} more</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {paymentMethod !== 'Cash' && (
+                          <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 text-gray-500">
+                            {paymentMethod === 'QRIS' ? <QrCode className="w-12 h-12 mb-3 opacity-20" /> : <CreditCard className="w-12 h-12 mb-3 opacity-20" />}
+                            <p className="text-center text-sm">Awaiting {paymentMethod} payment confirmation...</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="p-6 border-t bg-gray-50">
+                      <Button 
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-6 text-lg rounded-xl shadow-lg shadow-emerald-600/20"
+                        disabled={isCheckingOut || (paymentMethod === 'Cash' && (typeof cashReceived !== 'number' || cashReceived < cartTotal))}
+                        onClick={handleCheckout}
+                      >
+                        {isCheckingOut ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Confirm Payment'}
+                      </Button>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+
+              {showReceipt && lastTransaction && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+                  <motion.div 
+                    initial={{ opacity: 0, y: 50 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 50 }}
+                    className="bg-white rounded-t-xl rounded-b-sm shadow-2xl w-full max-w-sm overflow-hidden flex flex-col relative"
+                  >
+                    {/* Decorative Receipt Jagged Bottom (purely CSS visual trick if needed, or simple padding) */}
+                    <div className="p-8 text-center border-b-2 border-dashed border-gray-200">
+                      <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <CheckCircle className="w-8 h-8" />
+                      </div>
+                      <h2 className="font-serif italic text-2xl font-bold text-gray-900 mb-1">Maheer Fashion</h2>
+                      <p className="text-gray-500 text-xs">Jalan Jendral Sudirman No. 123</p>
+                      <p className="text-gray-500 text-xs mb-4">Telp: 0812-3456-7890</p>
+                      
+                      <div className="text-left text-xs font-mono text-gray-500 mb-4 grid grid-cols-2 gap-1">
+                        <span>Receipt No:</span> <span className="text-right text-gray-800">{lastTransaction.id}</span>
+                        <span>Date:</span> <span className="text-right text-gray-800">{lastTransaction.date}</span>
+                        <span>Cashier:</span> <span className="text-right text-gray-800">Admin</span>
+                      </div>
+                    </div>
+
+                    <div className="p-6 bg-gray-50/50">
+                      <div className="space-y-3 mb-4">
+                        {cart.map((item, idx) => (
+                          <div key={idx} className="flex justify-between text-xs">
+                            <div className="flex-1">
+                              <p className="font-bold text-gray-800">{item.product.name}</p>
+                              <p className="text-gray-500">{item.quantity} x Rp {item.product.price.toLocaleString()}</p>
+                            </div>
+                            <span className="font-bold text-gray-800">Rp {(item.quantity * item.product.price).toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <Separator className="my-3 border-dashed" />
+                      
+                      <div className="space-y-1 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Subtotal</span>
+                          <span className="font-bold text-gray-800">Rp {cartSubtotal.toLocaleString()}</span>
+                        </div>
+                        {discountAmount > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Discount</span>
+                            <span className="font-bold text-gray-800">-Rp {discountAmount.toLocaleString()}</span>
+                          </div>
+                        )}
+                        {cartAdminFee > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Fee ({posChannel})</span>
+                            <span className="font-bold text-gray-800">Rp {cartAdminFee.toLocaleString()}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <Separator className="my-3 border-dashed" />
+
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-bold text-gray-800">Total</span>
+                        <span className="text-lg font-bold text-gray-900">Rp {cartTotal.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-gray-600">Payment ({paymentMethod})</span>
+                        <span className="font-bold text-gray-800">Rp {paymentMethod === 'Cash' ? (cashReceived || cartTotal).toLocaleString() : cartTotal.toLocaleString()}</span>
+                      </div>
+                      {paymentMethod === 'Cash' && changeAmount > 0 && (
+                        <div className="flex justify-between items-center text-xs mt-1">
+                          <span className="text-gray-600">Change</span>
+                          <span className="font-bold text-gray-800">Rp {changeAmount.toLocaleString()}</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="p-6 bg-white grid grid-cols-2 gap-3">
+                      <Button variant="outline" className="w-full gap-2 text-royal border-royal/30 hover:bg-royal/5" onClick={() => window.print()}>
+                        <Printer className="w-4 h-4" />
+                        Print
+                      </Button>
+                      <Button className="w-full bg-royal hover:bg-royal/90 text-white" onClick={resetCart}>
+                        New Order
+                      </Button>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
 
             {activeTab === 'reports' && (
               <div className="space-y-8">
