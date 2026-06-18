@@ -1276,7 +1276,7 @@ export default function App() {
                             </div>
                             <div>
                               <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">BCA - Maheer Fashion</p>
-                              <p className="font-mono font-bold text-gray-800">123 456 7890</p>
+                              <p className="font-mono font-bold text-gray-800">5735291651</p>
                             </div>
                           </div>
                           <div className="flex items-center justify-between border-t border-royal/10 pt-3 mt-1">
