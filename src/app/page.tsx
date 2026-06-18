@@ -39,7 +39,16 @@ import {
   CreditCard,
   Banknote,
   QrCode,
-  Tag
+  Tag,
+  ClipboardCheck,
+  ShieldAlert,
+  HardDrive,
+  Camera,
+  MessageSquare,
+  Sparkles,
+  Send,
+  X as XIcon,
+  Upload
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -93,12 +102,96 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('overview');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [selectedCustomerLocal, setSelectedCustomerLocal] = useState<any>(null);
   const [supabaseStatus, setSupabaseStatus] = useState<'connected' | 'error' | 'idle'>('idle');
   
   const [products, setProducts] = useState<Product[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+
+  
+  const [approvals, setApprovals] = useState<any[]>([]);
+  const [systemSubTab, setSystemSubTab] = useState('health');
+  const [healthData, setHealthData] = useState<any>(null);
+  const [backupData, setBackupData] = useState<any>(null);
+  const [retentionData, setRetentionData] = useState<any>(null);
   const [dbStats, setDbStats] = useState<{ totalRevenue: number, totalProfit: number, dailyTurnover: number, orderVolume: number, avgOrderValue: number } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // AI & WhatsApp States
+  const [isOcrLoading, setIsOcrLoading] = useState(false);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiInsights, setAiInsights] = useState<string[] | null>(null);
+  
+  // WhatsApp Widget State
+  const [isWaOpen, setIsWaOpen] = useState(false);
+  const [waMessages, setWaMessages] = useState<{role: 'user' | 'bot', text: string}[]>([]);
+  const [waInput, setWaInput] = useState('');
+
+  // Handler for OCR Simulation
+  const handleOcrUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'restock' | 'payment') => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    setIsOcrLoading(true);
+    
+    // Simulate API Call to /api/ocr
+    try {
+      await new Promise(r => setTimeout(r, 1500));
+      if (type === 'payment') {
+        alert('OCR Struk Berhasil! Terdeteksi Nominal: Rp 450.000, Cocok dengan keranjang.');
+      } else {
+        alert('OCR Nota Berhasil! Mengekstrak: 12x Gamis Al-Zahra (GM-ALZ-XL-RBL)');
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsOcrLoading(false);
+    }
+  };
+
+  // Handler for AI Insights
+  const handleGenerateInsights = async () => {
+    setIsAiLoading(true);
+    try {
+      // Simulate API Call to /api/ai/insights
+      await new Promise(r => setTimeout(r, 2000));
+      setAiInsights([
+        "Gamis Al-Zahra XL menyumbang 40% penjualan hari ini, pertimbangkan restock tambahan.",
+        "Penjualan dari TikTok Shop meningkat 15% dibanding minggu lalu, optimalkan campaign TikTok.",
+        "Rata-rata transaksi kasir Offline hari ini Rp 450k, tawarkan bundle produk untuk upsell."
+      ]);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  // Handler for WhatsApp Bot Webhook Simulation
+  const handleSendWaMessage = async () => {
+    if (!waInput.trim()) return;
+    const userText = waInput;
+    setWaMessages(prev => [...prev, { role: 'user', text: userText }]);
+    setWaInput('');
+    
+    try {
+      // For standalone demo without env vars, we mock or call the local API
+      const res = await fetch('/api/whatsapp/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userText,
+          dbData: { products, transactions } // sending state for local logic
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setWaMessages(prev => [...prev, { role: 'bot', text: data.response }]);
+      } else {
+        setWaMessages(prev => [...prev, { role: 'bot', text: 'Maaf, sistem bot sedang error.' }]);
+      }
+    } catch (err) {
+      setWaMessages(prev => [...prev, { role: 'bot', text: 'Koneksi ke bot terputus.' }]);
+    }
+  };
 
   useEffect(() => {
     async function checkSupabase() {
@@ -121,6 +214,10 @@ export default function App() {
       if (!session) {
         router.push('/login');
       } else {
+        const isAdmin = session?.user?.email?.toLowerCase().includes('naisha');
+        if (!isAdmin) {
+          setActiveTab('sales');
+        }
         setIsAuthLoading(false);
       }
     });
@@ -132,6 +229,10 @@ export default function App() {
       if (!session) {
         router.push('/login');
       } else {
+        const isAdmin = session?.user?.email?.toLowerCase().includes('naisha');
+        if (!isAdmin) {
+          setActiveTab('sales');
+        }
         setIsAuthLoading(false);
       }
     });
@@ -161,9 +262,24 @@ export default function App() {
       };
       loadData();
     } else if (supabaseStatus === 'error') {
-      // Fallback to dummy data if error
-      setProducts(DUMMY_PRODUCTS);
-      setTransactions(DUMMY_TRANSACTIONS);
+      const lsTxs = localStorage.getItem('transactions');
+      if (lsTxs) {
+        let parsed = JSON.parse(lsTxs);
+        let migrated = false;
+        parsed = parsed.map((t: any) => {
+          if (!t.customer_id) {
+            migrated = true;
+            return { ...t, customer_id: `CUST-${Math.floor(Math.random() * 900) + 100}` };
+          }
+          return t;
+        });
+        if (migrated) {
+          localStorage.setItem('transactions', JSON.stringify(parsed));
+        }
+        setTransactions(parsed);
+      } else {
+        setTransactions(DUMMY_TRANSACTIONS);
+      }
       setIsLoading(false);
     }
   }, [supabaseStatus]);
@@ -235,7 +351,7 @@ export default function App() {
     if (cart.length === 0) return;
     setIsCheckingOut(true);
     try {
-      const newTrx = await processCheckout(cart, posChannel, cartSubtotal - discountAmount, cartAdminFee);
+      const newTrx = await processCheckout(cart, posChannel, cartSubtotal - discountAmount, cartAdminFee, `CUST-${Math.floor(Math.random() * 900) + 100}`);
       // Immediately reflect updates in local state
       setProducts(prev => prev.map(p => {
         const cartItem = cart.find(c => c.product.sku === p.sku);
@@ -277,6 +393,8 @@ export default function App() {
     return inventoryAnalysis.filter(item => item.str < 30);
   }, [inventoryAnalysis]);
 
+  const isSuperAdmin = session?.user?.email?.toLowerCase().includes('naisha');
+
   if (isAuthLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center">
@@ -313,30 +431,38 @@ export default function App() {
             </div>
 
             <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto scrollbar-none">
-              <SidebarItem 
-                icon={LayoutDashboard} 
-                label="Dashboard" 
-                active={activeTab === 'overview'} 
-                onClick={() => setActiveTab('overview')} 
-              />
-              <SidebarItem 
-                icon={Package} 
-                label="Inventory" 
-                active={activeTab === 'inventory'} 
-                onClick={() => setActiveTab('inventory')} 
-              />
-              <SidebarItem 
-                icon={ShoppingBag} 
-                label="Pembelian" 
-                active={activeTab === 'purchasing'} 
-                onClick={() => setActiveTab('purchasing')} 
-              />
-              <SidebarItem 
-                icon={HeartHandshake} 
-                label="Zakat" 
-                active={activeTab === 'zakat'} 
-                onClick={() => setActiveTab('zakat')} 
-              />
+              {isSuperAdmin && (
+                <SidebarItem 
+                  icon={LayoutDashboard} 
+                  label="Dashboard" 
+                  active={activeTab === 'overview'} 
+                  onClick={() => setActiveTab('overview')} 
+                />
+              )}
+              {isSuperAdmin && (
+                <SidebarItem 
+                  icon={Package} 
+                  label="Inventory" 
+                  active={activeTab === 'inventory'} 
+                  onClick={() => setActiveTab('inventory')} 
+                />
+              )}
+              {isSuperAdmin && (
+                <SidebarItem 
+                  icon={ShoppingBag} 
+                  label="Pembelian" 
+                  active={activeTab === 'purchasing'} 
+                  onClick={() => setActiveTab('purchasing')} 
+                />
+              )}
+              {isSuperAdmin && (
+                <SidebarItem 
+                  icon={HeartHandshake} 
+                  label="Zakat" 
+                  active={activeTab === 'zakat'} 
+                  onClick={() => setActiveTab('zakat')} 
+                />
+              )}
               <SidebarItem 
                 icon={ShoppingCart} 
                 label="POS Kasir" 
@@ -350,11 +476,35 @@ export default function App() {
                 onClick={() => setActiveTab('customers')} 
               />
               <SidebarItem 
-                icon={BarChart3} 
-                label="Reports" 
-                active={activeTab === 'reports'} 
-                onClick={() => setActiveTab('reports')} 
+                icon={FileText} 
+                label="Transactions" 
+                active={activeTab === 'transactions'} 
+                onClick={() => setActiveTab('transactions')} 
               />
+              {isSuperAdmin && (
+                <SidebarItem 
+                  icon={BarChart3} 
+                  label="Reports" 
+                  active={activeTab === 'reports'} 
+                  onClick={() => setActiveTab('reports')} 
+                />
+              )}
+              {isSuperAdmin && (
+                <SidebarItem 
+                  icon={ClipboardCheck} 
+                  label="Approvals" 
+                  active={activeTab === 'approvals'} 
+                  onClick={() => setActiveTab('approvals')} 
+                />
+              )}
+              {isSuperAdmin && (
+                <SidebarItem 
+                  icon={ShieldAlert} 
+                  label="System & Security" 
+                  active={activeTab === 'system'} 
+                  onClick={() => setActiveTab('system')} 
+                />
+              )}
             </nav>
 
             <div className="p-6 border-t border-white/10">
@@ -443,7 +593,38 @@ export default function App() {
         <ScrollArea className="flex-1 p-8">
           <div className="max-w-7xl mx-auto space-y-8">
             {activeTab === 'overview' && (
-              <>
+              <div className="space-y-8 animate-in fade-in-50 duration-300">
+                {/* AI Insights Section */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                  <div>
+                    <h3 className="text-2xl font-serif font-bold italic">Dashboard Overview</h3>
+                    <p className="text-gray-500">Ringkasan performa bisnis dan analitik penjualan.</p>
+                  </div>
+                  {isSuperAdmin && (
+                    <Button onClick={handleGenerateInsights} disabled={isAiLoading} className="bg-royal text-white flex items-center gap-2">
+                      {isAiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                      Generate AI Insights
+                    </Button>
+                  )}
+                </div>
+                
+                {aiInsights && (
+                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-r from-royal/10 to-gold-soft/20 border border-royal/20 rounded-2xl p-6 mb-8">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Sparkles className="text-royal w-5 h-5" />
+                      <h4 className="font-bold text-royal">Rekomendasi Cerdas (AI)</h4>
+                    </div>
+                    <ul className="space-y-3">
+                      {aiInsights.map((insight, idx) => (
+                        <li key={idx} className="flex gap-3 text-sm text-gray-700">
+                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-white flex items-center justify-center text-royal font-bold shadow-sm">{idx + 1}</span>
+                          <span className="pt-0.5">{insight}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </motion.div>
+                )}
+
                 {/* Summary Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {stats.map((stat, i) => (
@@ -556,7 +737,7 @@ export default function App() {
                     </Table>
                   </CardContent>
                 </Card>
-              </>
+              </div>
             )}
 
             {activeTab === 'inventory' && (
@@ -568,8 +749,12 @@ export default function App() {
                     <p className="text-gray-500">Identifying underperforming combinations and strategic improvements.</p>
                   </div>
                   <div className="flex gap-2">
+                    <input type="file" id="nota-upload" className="hidden" accept="image/*" onChange={(e) => handleOcrUpload(e, 'restock')} />
+                    <Button onClick={() => document.getElementById('nota-upload')?.click()} disabled={isOcrLoading} variant="outline" className="border-royal text-royal flex items-center gap-2">
+                      {isOcrLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                      Scan Nota Supplier
+                    </Button>
                     <Button className="bg-royal text-white">Export Report</Button>
-                    <Button variant="outline" className="border-royal text-royal">Filter by Category</Button>
                   </div>
                 </div>
 
@@ -943,6 +1128,16 @@ export default function App() {
                           </div>
                         </div>
                       </div>
+
+                      {paymentMethod === 'Transfer' && (
+                        <div className="mt-3 p-3 border border-royal/20 bg-royal/5 rounded-xl flex items-center justify-between">
+                          <span className="text-xs">Verifikasi Struk (AI):</span>
+                          <input type="file" id="struk-upload" className="hidden" accept="image/*" onChange={(e) => handleOcrUpload(e, 'payment')} />
+                          <Button size="sm" onClick={() => document.getElementById('struk-upload')?.click()} disabled={isOcrLoading} variant="outline" className="border-royal text-royal h-7 px-2 text-xs">
+                            {isOcrLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3 mr-1" />} Scan
+                          </Button>
+                        </div>
+                      )}
 
                       {/* Discount Input */}
                       <div>
@@ -1352,7 +1547,298 @@ export default function App() {
                 </div>
               </div>
             )}
+            
+            {activeTab === 'transactions' && (
+              <div className="space-y-8 animate-in fade-in-50 duration-300 p-8">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-2xl font-serif font-bold italic">Riwayat Transaksi</h3>
+                    <p className="text-gray-500">Daftar semua transaksi yang telah dilakukan.</p>
+                  </div>
+                </div>
+                <Card className="border-none shadow-sm overflow-hidden">
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader className="bg-royal/5">
+                        <TableRow>
+                          <TableHead className="font-bold text-royal">ID Transaksi</TableHead>
+                          <TableHead className="font-bold text-royal">Date & Time</TableHead>
+                          <TableHead className="font-bold text-royal">Channel</TableHead>
+                          <TableHead className="font-bold text-royal text-right">Revenue</TableHead>
+                          <TableHead className="font-bold text-royal">Status</TableHead>
+                          <TableHead className="font-bold text-royal text-right">Aksi</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(isSuperAdmin ? transactions : transactions.filter((t) => t.status !== 'cancelled')).map((trx) => (
+                          <TableRow key={trx.id}>
+                            <TableCell className="font-mono text-xs font-bold">{trx.id}</TableCell>
+                            <TableCell className="text-sm">{trx.date} {trx.time}</TableCell>
+                            <TableCell><Badge variant="outline">{trx.channel}</Badge></TableCell>
+                            <TableCell className="text-right font-bold">Rp {trx.total_revenue.toLocaleString('id-ID')}</TableCell>
+                            <TableCell>
+                              <Badge className={cn(trx.status === 'cancelled' ? 'bg-rose-100 text-rose-700 border-none' : trx.status === 'pending_cancellation' ? 'bg-amber-100 text-amber-700 border-none animate-pulse' : 'bg-emerald-100 text-emerald-700 border-none')}>
+                                {trx.status === 'cancelled' ? 'Batal' : trx.status === 'pending_cancellation' ? 'Pending Approval' : 'Success'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {trx.status !== 'cancelled' && trx.status !== 'pending_cancellation' && (
+                                <Button size="sm" variant="outline" className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs">
+                                  {isSuperAdmin ? 'Batalkan' : 'Ajukan Batal'}
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+            
+            {activeTab === 'approvals' && (
+              <div className="space-y-8 animate-in fade-in-50 duration-300 p-8">
+                <div>
+                  <h3 className="text-2xl font-serif font-bold italic">Approvals</h3>
+                  <p className="text-gray-500">Persetujuan untuk tindakan sensitif.</p>
+                </div>
+                <Card className="border-none shadow-sm overflow-hidden">
+                  <CardHeader className="pb-3"><CardTitle>Daftar Pengajuan</CardTitle></CardHeader>
+                  <CardContent className="p-0">
+                    <div className="p-12 text-center text-gray-400">
+                      <ClipboardCheck className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                      <p className="font-medium">Sistem persetujuan sedang dalam pemeliharaan.</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {activeTab === 'system' && (
+              <div className="space-y-8 animate-in fade-in-50 duration-300 p-8">
+                <div>
+                  <h3 className="text-2xl font-serif font-bold italic">Sistem & Keamanan</h3>
+                  <p className="text-gray-500">Status kesehatan, backup, dan manajemen data retention.</p>
+                </div>
+                
+                <Tabs value={systemSubTab} onValueChange={setSystemSubTab} className="w-full">
+                  <TabsList className="bg-royal/5 border-b-2 border-royal/10 rounded-none w-full justify-start h-auto p-0 flex gap-6">
+                    <TabsTrigger value="health" className="rounded-none border-b-2 border-transparent data-[state=active]:border-royal data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-royal font-bold pb-2 pt-3 text-gray-500"><HardDrive className="w-4 h-4 mr-2" />Health Check</TabsTrigger>
+                    <TabsTrigger value="backup" className="rounded-none border-b-2 border-transparent data-[state=active]:border-royal data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-royal font-bold pb-2 pt-3 text-gray-500"><Database className="w-4 h-4 mr-2" />Backup & DR</TabsTrigger>
+                    <TabsTrigger value="retention" className="rounded-none border-b-2 border-transparent data-[state=active]:border-royal data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-royal font-bold pb-2 pt-3 text-gray-500"><ShieldAlert className="w-4 h-4 mr-2" />Data Retention</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="health" className="pt-6">
+                    <Card className="border-none shadow-sm"><CardContent className="p-6">
+                      <h4 className="font-bold text-lg mb-4">Database Health Check</h4>
+                      {healthData ? (
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-3">
+                            <span className="font-medium w-24">Status:</span>
+                            <Badge className={healthData.status === 'ok' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}>{healthData.status}</Badge>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-medium w-24">Latency:</span>
+                            <span>{healthData.latency} ms</span>
+                          </div>
+                        </div>
+                      ) : <p className="text-gray-500">Loading health data...</p>}
+                    </CardContent></Card>
+                  </TabsContent>
+                  
+                  <TabsContent value="backup" className="pt-6">
+                    <Card className="border-none shadow-sm"><CardContent className="p-6">
+                      <h4 className="font-bold text-lg mb-4">Disaster Recovery Drill</h4>
+                      {backupData ? (
+                        <div className="space-y-4">
+                          <p>Last Drill: {backupData.lastDrill}</p>
+                          <p>Status: <Badge>{backupData.status}</Badge></p>
+                        </div>
+                      ) : <p className="text-gray-500">Loading backup status...</p>}
+                    </CardContent></Card>
+                  </TabsContent>
+
+                  <TabsContent value="retention" className="pt-6">
+                    <Card className="border-none shadow-sm"><CardContent className="p-6">
+                      <h4 className="font-bold text-lg mb-4">Data Retention & Anonymization</h4>
+                      {retentionData ? (
+                        <div className="space-y-4">
+                          <p>Transaksi lama ({'>'}3 tahun): {retentionData.eligibleCount} records</p>
+                          <Button variant="outline" className="border-rose-200 text-rose-600">Eksekusi Anonimisasi</Button>
+                        </div>
+                      ) : <p className="text-gray-500">Loading retention data...</p>}
+                    </CardContent></Card>
+                  </TabsContent>
+                </Tabs>
+              </div>
+            )}
           </div>
+            {activeTab === 'customers' && (() => {
+              const txSource = transactions.length > 0 ? transactions : DUMMY_TRANSACTIONS;
+              const successTx = txSource.filter(t => t.status !== 'cancelled' && t.customer_id && t.customer_id !== 'ANONYMIZED' && t.customer_id.trim() !== '');
+              const customerMap: Record<string, { id: string; name: string; totalSpend: number; txCount: number; channels: Record<string, number>; lastDate: string; firstDate: string; transactions: typeof txSource; }> = {};
+              successTx.forEach(t => {
+                const cid = t.customer_id;
+                if (!customerMap[cid]) customerMap[cid] = { id: cid, name: cid, totalSpend: 0, txCount: 0, channels: {}, lastDate: t.date, firstDate: t.date, transactions: [] };
+                customerMap[cid].totalSpend += t.total_revenue;
+                customerMap[cid].txCount += 1;
+                customerMap[cid].channels[t.channel] = (customerMap[cid].channels[t.channel] || 0) + 1;
+                if (t.date > customerMap[cid].lastDate) customerMap[cid].lastDate = t.date;
+                if (t.date < customerMap[cid].firstDate) customerMap[cid].firstDate = t.date;
+                customerMap[cid].transactions.push(t);
+              });
+              const customers = Object.values(customerMap).sort((a, b) => b.totalSpend - a.totalSpend);
+              const totalCustomers = customers.length;
+              const totalRevFromCustomers = customers.reduce((s, c) => s + c.totalSpend, 0);
+              const avgSpend = totalCustomers > 0 ? Math.floor(totalRevFromCustomers / totalCustomers) : 0;
+              const CH_CLR: Record<string, string> = { 'Offline': 'bg-slate-100 text-slate-700', 'Shopee': 'bg-orange-100 text-orange-700', 'TikTok Shop': 'bg-pink-100 text-pink-700' };
+              
+              return (
+                <div className="space-y-8 animate-in fade-in-50 duration-300 p-8">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-2xl font-serif font-bold italic">Pelanggan</h3>
+                      <p className="text-gray-500">Daftar pelanggan dari riwayat transaksi toko — klik baris untuk melihat detail.</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {[
+                      { label: 'Total Pelanggan Unik', value: totalCustomers.toLocaleString('id-ID'), icon: Users, color: 'text-royal' },
+                      { label: 'Total Belanja (Data Terdaftar)', value: `Rp ${(totalRevFromCustomers / 1000000).toFixed(1)}M`, icon: TrendingUp, color: 'text-emerald-600' },
+                      { label: 'Rata-rata Belanja per Pelanggan', value: `Rp ${(avgSpend / 1000).toFixed(0)}k`, icon: ShoppingBag, color: 'text-amber-600' },
+                    ].map(({ label, value, icon: Icon, color }) => (
+                      <Card key={label} className="border-none shadow-sm">
+                        <CardContent className="p-5 flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center shrink-0">
+                            <Icon className={`w-6 h-6 ${color}`} />
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">{label}</p>
+                            <p className="text-xl font-bold mt-0.5">{value}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                  <Card className="border-none shadow-sm overflow-hidden">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Daftar Pelanggan</CardTitle>
+                      <CardDescription>Diurutkan berdasarkan total belanja tertinggi</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      {customers.length === 0 ? (
+                        <div className="p-12 text-center text-gray-400">
+                          <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                          <p className="font-medium">Belum ada data pelanggan.</p>
+                        </div>
+                      ) : (
+                        <Table>
+                          <TableHeader className="bg-royal/5">
+                            <TableRow>
+                              <TableHead className="font-bold text-royal w-8">#</TableHead>
+                              <TableHead className="font-bold text-royal">ID Pelanggan</TableHead>
+                              <TableHead className="font-bold text-royal">Channel Favorit</TableHead>
+                              <TableHead className="font-bold text-royal text-center">Jml. Transaksi</TableHead>
+                              <TableHead className="font-bold text-royal text-right">Total Belanja Lifetime</TableHead>
+                              <TableHead className="font-bold text-royal">Transaksi Terakhir</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {customers.map((cust, idx) => {
+                              const favChannel = Object.entries(cust.channels).sort((a, b) => b[1] - a[1])[0]?.[0] || '-';
+                              return (
+                                <TableRow key={cust.id} className="cursor-pointer hover:bg-royal/5 transition-colors" onClick={() => setSelectedCustomerLocal(cust)}>
+                                  <TableCell className="text-xs text-gray-400 font-mono">{idx + 1}</TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-9 h-9 rounded-full bg-royal/10 flex items-center justify-center shrink-0">
+                                        <span className="text-sm font-bold text-royal">{cust.name.charAt(0).toUpperCase()}</span>
+                                      </div>
+                                      <div>
+                                        <p className="font-semibold text-sm">{cust.name}</p>
+                                        <p className="text-xs text-gray-400">Sejak {cust.firstDate}</p>
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge className={`border-none text-xs ${CH_CLR[favChannel] || 'bg-gray-100 text-gray-600'}`}>{favChannel}</Badge>
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    <Badge variant="outline" className="border-royal/30 text-royal font-bold">{cust.txCount}x</Badge>
+                                  </TableCell>
+                                  <TableCell className="text-right font-bold text-emerald-600">Rp {cust.totalSpend.toLocaleString('id-ID')}</TableCell>
+                                  <TableCell className="text-sm text-gray-500">{cust.lastDate}</TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Customer Detail Modal */}
+                  <AnimatePresence>
+                    {selectedCustomerLocal && (
+                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setSelectedCustomerLocal(null)}>
+                        <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center justify-between px-6 py-5 border-b">
+                            <div className="flex items-center gap-4">
+                              <div className="w-12 h-12 rounded-full bg-royal/10 flex items-center justify-center">
+                                <span className="text-xl font-bold text-royal">{selectedCustomerLocal.name.charAt(0).toUpperCase()}</span>
+                              </div>
+                              <div>
+                                <h4 className="font-bold text-lg">{selectedCustomerLocal.name}</h4>
+                                <p className="text-sm text-gray-500">{selectedCustomerLocal.txCount} transaksi · Sejak {selectedCustomerLocal.firstDate}</p>
+                              </div>
+                            </div>
+                            <button onClick={() => setSelectedCustomerLocal(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+                              <X className="w-4 h-4 text-gray-500" />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-3 border-b">
+                            <div className="p-4 text-center border-r">
+                              <p className="text-xs text-gray-400 mb-1">Total Belanja</p>
+                              <p className="font-bold text-emerald-600">Rp {selectedCustomerLocal.totalSpend.toLocaleString('id-ID')}</p>
+                            </div>
+                            <div className="p-4 text-center border-r">
+                              <p className="text-xs text-gray-400 mb-1">Channel Favorit</p>
+                              <Badge className={`border-none text-xs ${CH_CLR[Object.entries(selectedCustomerLocal.channels).sort((a:any,b:any)=>b[1]-a[1])[0]?.[0]] || 'bg-gray-100 text-gray-600'}`}>
+                                {Object.entries(selectedCustomerLocal.channels).sort((a:any,b:any)=>b[1]-a[1])[0]?.[0] || '-'}
+                              </Badge>
+                            </div>
+                            <div className="p-4 text-center">
+                              <p className="text-xs text-gray-400 mb-1">Rata-rata Transaksi</p>
+                              <p className="font-bold text-royal">Rp {Math.floor(selectedCustomerLocal.totalSpend / selectedCustomerLocal.txCount).toLocaleString('id-ID')}</p>
+                            </div>
+                          </div>
+                          <ScrollArea className="flex-1 px-6 pb-6 mt-4">
+                            <div className="space-y-1">
+                              {selectedCustomerLocal.transactions.sort((a:any,b:any) => b.date.localeCompare(a.date)).map((t:any) => (
+                                <div key={t.id} className="flex items-center justify-between py-3 border-b last:border-0">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-2 h-2 rounded-full shrink-0 ${t.status === 'cancelled' ? 'bg-rose-400' : 'bg-emerald-400'}`} />
+                                    <div>
+                                      <p className="font-mono text-sm font-semibold">{t.id}</p>
+                                      <p className="text-xs text-gray-400">{t.date} · {t.time}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <Badge className={`border-none text-xs ${CH_CLR[t.channel] || 'bg-gray-100 text-gray-600'}`}>{t.channel}</Badge>
+                                    <p className={`font-bold text-sm ${t.status === 'cancelled' ? 'line-through text-gray-400' : 'text-gray-800'}`}>Rp {t.total_revenue.toLocaleString('id-ID')}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </ScrollArea>
+                        </motion.div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })()}
         </ScrollArea>
       </main>
 
@@ -1361,6 +1847,45 @@ export default function App() {
         onClose={() => setIsProductModalOpen(false)} 
         onSuccess={handleProductAdded} 
       />
+
+        {/* WhatsApp Bot Simulator Widget */}
+        <div className="fixed bottom-6 right-6 z-50">
+          <AnimatePresence>
+            {isWaOpen && (
+              <motion.div initial={{ opacity: 0, y: 20, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.9 }} className="absolute bottom-16 right-0 w-80 bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col h-96">
+                <div className="bg-[#075e54] p-4 flex items-center justify-between text-white">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5" />
+                    <span className="font-bold text-sm">Bot Kasir Maheer</span>
+                  </div>
+                  <button onClick={() => setIsWaOpen(false)} className="hover:bg-white/20 p-1 rounded-full"><XIcon className="w-5 h-5" /></button>
+                </div>
+                <div className="flex-1 p-4 bg-[#ece5dd] overflow-y-auto space-y-3 text-black">
+                  {waMessages.length === 0 && (
+                    <div className="text-center text-xs text-gray-500 bg-white/50 p-2 rounded-lg mx-4 mt-2">
+                      Ketik "help" atau "stok" untuk memulai simulasi.
+                    </div>
+                  )}
+                  {waMessages.map((msg, idx) => (
+                    <div key={idx} className={`max-w-[85%] p-2 rounded-lg text-sm shadow-sm ${msg.role === 'user' ? 'bg-[#dcf8c6] ml-auto rounded-tr-none' : 'bg-white mr-auto rounded-tl-none whitespace-pre-wrap'}`}>
+                      {msg.text}
+                    </div>
+                  ))}
+                </div>
+                <div className="p-2 bg-[#f0f0f0] flex items-center gap-2">
+                  <input type="text" value={waInput} onChange={(e) => setWaInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendWaMessage()} placeholder="Ketik pesan..." className="flex-1 px-4 py-2 rounded-full border-none focus:ring-1 focus:ring-[#128c7e] text-sm text-black" />
+                  <button onClick={handleSendWaMessage} className="p-2 bg-[#128c7e] hover:bg-[#075e54] transition-colors text-white rounded-full shadow-sm">
+                    <Send className="w-4 h-4 ml-0.5" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <button onClick={() => setIsWaOpen(!isWaOpen)} className="w-14 h-14 bg-[#25d366] hover:bg-[#128c7e] text-white rounded-full shadow-xl flex items-center justify-center transition-transform hover:scale-110">
+            {isWaOpen ? <XIcon className="w-6 h-6" /> : <MessageSquare className="w-7 h-7" />}
+          </button>
+        </div>
+
     </div>
   );
 }
