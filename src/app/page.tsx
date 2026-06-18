@@ -311,6 +311,7 @@ export default function App() {
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [cashReceived, setCashReceived] = useState<number | ''>('');
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+  const [isGlModalOpen, setIsGlModalOpen] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null);
 
@@ -1353,6 +1354,69 @@ export default function App() {
 
             {/* Modals for Checkout and Receipt */}
             <AnimatePresence>
+              {isGlModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-white rounded-3xl p-6 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl"
+                  >
+                    <div className="flex justify-between items-center mb-6">
+                      <div>
+                        <h3 className="text-2xl font-serif font-bold italic text-gray-900">General Ledger</h3>
+                        <p className="text-gray-500 text-sm">Buku Besar Akuntansi (Simplified)</p>
+                      </div>
+                      <button onClick={() => setIsGlModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors">
+                        <X className="w-6 h-6" />
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto space-y-6 pr-2">
+                      {Array.from(new Set(JOURNAL_ENTRIES.map(j => j.account))).map(account => {
+                        const entries = JOURNAL_ENTRIES.filter(j => j.account === account);
+                        const tDebit = entries.reduce((sum, j) => sum + j.debit, 0);
+                        const tCredit = entries.reduce((sum, j) => sum + j.credit, 0);
+                        return (
+                          <Card key={account} className="border-gray-200 overflow-hidden shadow-sm">
+                            <CardHeader className="bg-royal/5 py-3 px-4 border-b border-gray-100">
+                              <CardTitle className="text-lg font-bold text-royal flex items-center gap-2">
+                                <BookOpen className="w-4 h-4" />
+                                {account}
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-0">
+                              <Table>
+                                <TableHeader className="bg-gray-50">
+                                  <TableRow>
+                                    <TableHead className="w-32 font-bold text-gray-600">Tanggal</TableHead>
+                                    <TableHead className="font-bold text-gray-600">Keterangan</TableHead>
+                                    <TableHead className="text-right font-bold text-gray-600">Debit</TableHead>
+                                    <TableHead className="text-right font-bold text-gray-600">Kredit</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {entries.map((j, i) => (
+                                    <TableRow key={i}>
+                                      <TableCell className="text-xs text-gray-600">{j.date}</TableCell>
+                                      <TableCell className="text-xs font-medium">{j.desc}</TableCell>
+                                      <TableCell className="text-xs text-right font-mono text-emerald-600">{j.debit > 0 ? `Rp ${j.debit.toLocaleString('id-ID')}` : '-'}</TableCell>
+                                      <TableCell className="text-xs text-right font-mono text-rose-600">{j.credit > 0 ? `Rp ${j.credit.toLocaleString('id-ID')}` : '-'}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                  <TableRow className="bg-gray-50 font-bold border-t border-gray-200">
+                                    <TableCell colSpan={2} className="text-right text-gray-600">Total Mutasi:</TableCell>
+                                    <TableCell className="text-right text-emerald-600 font-mono">Rp {tDebit.toLocaleString('id-ID')}</TableCell>
+                                    <TableCell className="text-right text-rose-600 font-mono">Rp {tCredit.toLocaleString('id-ID')}</TableCell>
+                                  </TableRow>
+                                </TableBody>
+                              </Table>
+                            </CardContent>
+                          </Card>
+                        )
+                      })}
+                    </div>
+                  </motion.div>
+                </div>
+              )}
               {isCheckoutModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
                   <motion.div 
@@ -1524,7 +1588,7 @@ export default function App() {
                     <p className="text-gray-500">Accounting records for fashion business operations.</p>
                   </div>
                   <div className="flex gap-2">
-                    <Button onClick={() => alert("Membuka Buku Besar (General Ledger). Fitur lengkap sedang dalam tahap sinkronisasi data.")} variant="outline" className="border-royal text-royal gap-2">
+                    <Button onClick={() => setIsGlModalOpen(true)} variant="outline" className="border-royal text-royal gap-2">
                       <BookOpen className="w-4 h-4" />
                       General Ledger
                     </Button>
