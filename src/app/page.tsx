@@ -1112,10 +1112,10 @@ export default function App() {
                   )}
                 </div>
 
-                <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                   {/* Left Pane: Product Selection */}
-                  <div className="md:col-span-2 space-y-4">
-                    <div className="relative w-full md:w-96">
+                  <div className="space-y-4">
+                    <div className="relative w-full">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input 
                         type="text" 
@@ -1126,7 +1126,7 @@ export default function App() {
                       />
                     </div>
                     
-                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="flex flex-col gap-3 h-[calc(100vh-14rem)] overflow-y-auto pr-2 pb-10">
                       {displayProducts
                         .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.sku.toLowerCase().includes(searchQuery.toLowerCase()))
                         .map(p => {
@@ -1138,22 +1138,21 @@ export default function App() {
                             <Card 
                               key={p.sku} 
                               className={cn(
-                                "border-none shadow-sm overflow-hidden transition-all", 
+                                "border-none shadow-sm overflow-hidden transition-all flex items-center", 
                                 availableStock > 0 ? "hover:shadow-md cursor-pointer group" : "opacity-60 grayscale cursor-not-allowed"
                               )}
                               onClick={() => availableStock > 0 && addToCart(p)}
                             >
-                              <div className="h-24 bg-royal/5 flex items-center justify-center p-4">
-                                <Package className="w-10 h-10 text-royal/20 group-hover:scale-110 transition-transform" />
+                              <div className="w-20 min-h-[5rem] h-full bg-royal/5 flex items-center justify-center shrink-0">
+                                <Package className="w-8 h-8 text-royal/30 group-hover:scale-110 transition-transform" />
                               </div>
-                              <CardContent className="p-4">
+                              <div className="p-3 flex-1 min-w-0">
                                 <div className="flex justify-between items-start mb-1">
                                   <Badge variant="outline" className="text-[10px]">{p.category}</Badge>
                                   <span className="text-xs font-bold text-royal">Rp {(p.price / 1000)}k</span>
                                 </div>
                                 <h4 className="font-bold text-sm truncate">{p.name}</h4>
-                                <p className="text-[10px] text-gray-400 font-mono mt-1">{p.sku}</p>
-                                <div className="flex items-center justify-between mt-3">
+                                <div className="flex items-center justify-between mt-2">
                                   <div className="flex gap-1">
                                     <Badge className="bg-gray-100 text-gray-600 border-none text-[10px]">{p.size}</Badge>
                                     <Badge className="bg-gray-100 text-gray-600 border-none text-[10px]">{p.color}</Badge>
@@ -1162,7 +1161,7 @@ export default function App() {
                                     Sisa: {availableStock}
                                   </span>
                                 </div>
-                              </CardContent>
+                              </div>
                             </Card>
                           );
                       })}
