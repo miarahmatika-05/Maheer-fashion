@@ -395,6 +395,20 @@ export default function App() {
 
   const isSuperAdmin = session?.user?.email?.toLowerCase().includes('naisha');
 
+  const handleCancelRequest = (trx: any) => {
+    const newStatus = isSuperAdmin ? 'cancelled' : 'pending_cancellation';
+    const updated = transactions.map((t: any) => t.id === trx.id ? { ...t, status: newStatus } : t);
+    setTransactions(updated);
+    localStorage.setItem('transactions', JSON.stringify(updated));
+  };
+
+  const handleApproveCancel = (trxId: string, approve: boolean) => {
+    const newStatus = approve ? 'cancelled' : 'success';
+    const updated = transactions.map((t: any) => t.id === trxId ? { ...t, status: newStatus } : t);
+    setTransactions(updated);
+    localStorage.setItem('transactions', JSON.stringify(updated));
+  };
+
   if (isAuthLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center">
@@ -1588,9 +1602,9 @@ export default function App() {
                               </TableCell>
                               <TableCell className="text-right">
                                 {trx.status !== 'cancelled' && trx.status !== 'pending_cancellation' && isWithin7Days && (
-                                  <Button size="sm" variant="outline" className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs">
-                                    {isSuperAdmin ? 'Batalkan' : 'Ajukan Batal'}
-                                  </Button>
+                                <Button size="sm" variant="outline" onClick={() => handleCancelRequest(trx)} className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs">
+                                  {isSuperAdmin ? 'Batalkan' : 'Ajukan Batal'}
+                                </Button>
                                 )}
                               </TableCell>
                             </TableRow>
@@ -1610,12 +1624,39 @@ export default function App() {
                   <p className="text-gray-500">Persetujuan untuk tindakan sensitif.</p>
                 </div>
                 <Card className="border-none shadow-sm overflow-hidden">
-                  <CardHeader className="pb-3"><CardTitle>Daftar Pengajuan</CardTitle></CardHeader>
+                  <CardHeader className="pb-3"><CardTitle>Daftar Pengajuan Pembatalan</CardTitle></CardHeader>
                   <CardContent className="p-0">
-                    <div className="p-12 text-center text-gray-400">
-                      <ClipboardCheck className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                      <p className="font-medium">Sistem persetujuan sedang dalam pemeliharaan.</p>
-                    </div>
+                    <Table>
+                      <TableHeader className="bg-royal/5">
+                        <TableRow>
+                          <TableHead className="font-bold text-royal">ID Transaksi</TableHead>
+                          <TableHead className="font-bold text-royal">Date & Time</TableHead>
+                          <TableHead className="font-bold text-royal text-right">Revenue</TableHead>
+                          <TableHead className="font-bold text-royal text-right">Aksi</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {transactions.filter(t => t.status === 'pending_cancellation').length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-8 text-gray-400">
+                              Tidak ada pengajuan pembatalan.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          transactions.filter(t => t.status === 'pending_cancellation').map(trx => (
+                            <TableRow key={trx.id}>
+                              <TableCell className="font-mono text-xs font-bold">{trx.id}</TableCell>
+                              <TableCell className="text-sm">{trx.date} {trx.time}</TableCell>
+                              <TableCell className="text-right font-bold">Rp {trx.total_revenue.toLocaleString('id-ID')}</TableCell>
+                              <TableCell className="text-right space-x-2">
+                                <Button size="sm" onClick={() => handleApproveCancel(trx.id, true)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs">Setujui</Button>
+                                <Button size="sm" onClick={() => handleApproveCancel(trx.id, false)} variant="outline" className="border-rose-200 text-rose-600 text-xs">Tolak</Button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
                   </CardContent>
                 </Card>
               </div>
