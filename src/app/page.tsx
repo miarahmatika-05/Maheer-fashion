@@ -972,10 +972,13 @@ export default function App() {
                     <h3 className="text-2xl font-serif font-bold italic">Purchasing & Procurement</h3>
                     <p className="text-gray-500">Manage supplier invoices and stock procurement.</p>
                   </div>
-                  <Button className="bg-royal text-white gap-2">
-                    <Plus className="w-4 h-4" />
-                    Create Purchase Invoice
-                  </Button>
+                  <div className="flex gap-2">
+                    <input type="file" id="nota-upload-purchasing" className="hidden" accept="image/*" onChange={(e) => handleOcrUpload(e, 'restock')} />
+                    <Button onClick={() => document.getElementById('nota-upload-purchasing')?.click()} disabled={isOcrLoading} className="bg-royal text-white gap-2">
+                      {isOcrLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                      Create Purchase Invoice (Scan)
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
