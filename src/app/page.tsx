@@ -452,6 +452,30 @@ export default function App() {
     document.body.removeChild(link);
   };
 
+  const JOURNAL_ENTRIES = [
+    { id: 1, date: 'April 07, 2026', type: 'sales', desc: 'Penjualan Gamis Al-Zahra (Shopee)', account: 'Kas / Bank', debit: 450000, credit: 0 },
+    { id: 2, date: 'April 07, 2026', type: 'sales', desc: 'Penjualan Gamis Al-Zahra (Shopee)', account: 'Pendapatan Penjualan', debit: 0, credit: 450000 },
+    { id: 3, date: 'April 06, 2026', type: 'purchase', desc: 'Pembelian Kain Silk (Supplier A)', account: 'Persediaan Barang', debit: 5000000, credit: 0 },
+    { id: 4, date: 'April 06, 2026', type: 'purchase', desc: 'Pembelian Kain Silk (Supplier A)', account: 'Hutang Usaha', debit: 0, credit: 5000000 },
+  ];
+
+  const handleExportJournals = () => {
+    const headers = ['Date', 'Description', 'Type', 'Account', 'Debit', 'Credit'];
+    const rows = JOURNAL_ENTRIES.map(j => [
+      `"${j.date}"`, `"${j.desc}"`, j.type === 'sales' ? 'Penjualan' : 'Pembelian', `"${j.account}"`, j.debit, j.credit
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + headers.join(",") + "\n" 
+      + rows.map(e => e.join(",")).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `financial_journals_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Fetch system data when 'system' tab is active
   useEffect(() => {
     if (activeTab === 'system') {
@@ -1471,11 +1495,11 @@ export default function App() {
                     <p className="text-gray-500">Accounting records for fashion business operations.</p>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" className="border-royal text-royal gap-2">
+                    <Button onClick={() => alert("Membuka Buku Besar (General Ledger). Fitur lengkap sedang dalam tahap sinkronisasi data.")} variant="outline" className="border-royal text-royal gap-2">
                       <BookOpen className="w-4 h-4" />
                       General Ledger
                     </Button>
-                    <Button className="bg-royal text-white">Export Journals</Button>
+                    <Button onClick={handleExportJournals} className="bg-royal text-white">Export Journals</Button>
                   </div>
                 </div>
 
@@ -1500,34 +1524,73 @@ export default function App() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
+                            {JOURNAL_ENTRIES.map(j => (
+                              <TableRow key={j.id}>
+                                <TableCell className="text-sm">{j.date}</TableCell>
+                                <TableCell className="text-sm">{j.desc}</TableCell>
+                                <TableCell className="text-sm">{j.account}</TableCell>
+                                <TableCell className="text-right font-bold text-emerald-600">{j.debit > 0 ? `Rp ${j.debit.toLocaleString('id-ID')}` : '-'}</TableCell>
+                                <TableCell className="text-right font-bold text-rose-600">{j.credit > 0 ? `Rp ${j.credit.toLocaleString('id-ID')}` : '-'}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="sales">
+                    <Card className="border-none shadow-sm overflow-hidden">
+                      <CardContent className="p-0">
+                        <Table>
+                          <TableHeader className="bg-royal/5">
                             <TableRow>
-                              <TableCell className="text-sm">April 07, 2026</TableCell>
-                              <TableCell className="text-sm">Penjualan Gamis Al-Zahra (Shopee)</TableCell>
-                              <TableCell className="text-sm">Kas / Bank</TableCell>
-                              <TableCell className="text-right font-bold text-emerald-600">Rp 450,000</TableCell>
-                              <TableCell className="text-right font-bold">-</TableCell>
+                              <TableHead className="font-bold text-royal">Date</TableHead>
+                              <TableHead className="font-bold text-royal">Description</TableHead>
+                              <TableHead className="font-bold text-royal">Account</TableHead>
+                              <TableHead className="font-bold text-royal text-right">Debit</TableHead>
+                              <TableHead className="font-bold text-royal text-right">Credit</TableHead>
                             </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {JOURNAL_ENTRIES.filter(j => j.type === 'sales').map(j => (
+                              <TableRow key={j.id}>
+                                <TableCell className="text-sm">{j.date}</TableCell>
+                                <TableCell className="text-sm">{j.desc}</TableCell>
+                                <TableCell className="text-sm">{j.account}</TableCell>
+                                <TableCell className="text-right font-bold text-emerald-600">{j.debit > 0 ? `Rp ${j.debit.toLocaleString('id-ID')}` : '-'}</TableCell>
+                                <TableCell className="text-right font-bold text-rose-600">{j.credit > 0 ? `Rp ${j.credit.toLocaleString('id-ID')}` : '-'}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="purchase">
+                    <Card className="border-none shadow-sm overflow-hidden">
+                      <CardContent className="p-0">
+                        <Table>
+                          <TableHeader className="bg-royal/5">
                             <TableRow>
-                              <TableCell className="text-sm">April 07, 2026</TableCell>
-                              <TableCell className="text-sm">Penjualan Gamis Al-Zahra (Shopee)</TableCell>
-                              <TableCell className="text-sm">Pendapatan Penjualan</TableCell>
-                              <TableCell className="text-right font-bold">-</TableCell>
-                              <TableCell className="text-right font-bold text-rose-600">Rp 450,000</TableCell>
+                              <TableHead className="font-bold text-royal">Date</TableHead>
+                              <TableHead className="font-bold text-royal">Description</TableHead>
+                              <TableHead className="font-bold text-royal">Account</TableHead>
+                              <TableHead className="font-bold text-royal text-right">Debit</TableHead>
+                              <TableHead className="font-bold text-royal text-right">Credit</TableHead>
                             </TableRow>
-                            <TableRow>
-                              <TableCell className="text-sm">April 06, 2026</TableCell>
-                              <TableCell className="text-sm">Pembelian Kain Silk (Supplier A)</TableCell>
-                              <TableCell className="text-sm">Persediaan Barang</TableCell>
-                              <TableCell className="text-right font-bold text-emerald-600">Rp 5,000,000</TableCell>
-                              <TableCell className="text-right font-bold">-</TableCell>
-                            </TableRow>
-                            <TableRow>
-                              <TableCell className="text-sm">April 06, 2026</TableCell>
-                              <TableCell className="text-sm">Pembelian Kain Silk (Supplier A)</TableCell>
-                              <TableCell className="text-sm">Hutang Usaha</TableCell>
-                              <TableCell className="text-right font-bold">-</TableCell>
-                              <TableCell className="text-right font-bold text-rose-600">Rp 5,000,000</TableCell>
-                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {JOURNAL_ENTRIES.filter(j => j.type === 'purchase').map(j => (
+                              <TableRow key={j.id}>
+                                <TableCell className="text-sm">{j.date}</TableCell>
+                                <TableCell className="text-sm">{j.desc}</TableCell>
+                                <TableCell className="text-sm">{j.account}</TableCell>
+                                <TableCell className="text-right font-bold text-emerald-600">{j.debit > 0 ? `Rp ${j.debit.toLocaleString('id-ID')}` : '-'}</TableCell>
+                                <TableCell className="text-right font-bold text-rose-600">{j.credit > 0 ? `Rp ${j.credit.toLocaleString('id-ID')}` : '-'}</TableCell>
+                              </TableRow>
+                            ))}
                           </TableBody>
                         </Table>
                       </CardContent>
