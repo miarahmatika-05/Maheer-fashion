@@ -1570,26 +1570,32 @@ export default function App() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {(isSuperAdmin ? transactions : transactions.filter((t) => t.status !== 'cancelled')).map((trx) => (
-                          <TableRow key={trx.id}>
-                            <TableCell className="font-mono text-xs font-bold">{trx.id}</TableCell>
-                            <TableCell className="text-sm">{trx.date} {trx.time}</TableCell>
-                            <TableCell><Badge variant="outline">{trx.channel}</Badge></TableCell>
-                            <TableCell className="text-right font-bold">Rp {trx.total_revenue.toLocaleString('id-ID')}</TableCell>
-                            <TableCell>
-                              <Badge className={cn(trx.status === 'cancelled' ? 'bg-rose-100 text-rose-700 border-none' : trx.status === 'pending_cancellation' ? 'bg-amber-100 text-amber-700 border-none animate-pulse' : 'bg-emerald-100 text-emerald-700 border-none')}>
-                                {trx.status === 'cancelled' ? 'Batal' : trx.status === 'pending_cancellation' ? 'Pending Approval' : 'Success'}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {trx.status !== 'cancelled' && trx.status !== 'pending_cancellation' && (
-                                <Button size="sm" variant="outline" className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs">
-                                  {isSuperAdmin ? 'Batalkan' : 'Ajukan Batal'}
-                                </Button>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {(isSuperAdmin ? transactions : transactions.filter((t) => t.status !== 'cancelled')).map((trx) => {
+                          const txTime = new Date(trx.created_at || `${trx.date}T${trx.time}`).getTime();
+                          const ageDays = (Date.now() - txTime) / (1000 * 60 * 60 * 24);
+                          const isWithin7Days = ageDays <= 7;
+                          
+                          return (
+                            <TableRow key={trx.id}>
+                              <TableCell className="font-mono text-xs font-bold">{trx.id}</TableCell>
+                              <TableCell className="text-sm">{trx.date} {trx.time}</TableCell>
+                              <TableCell><Badge variant="outline">{trx.channel}</Badge></TableCell>
+                              <TableCell className="text-right font-bold">Rp {trx.total_revenue.toLocaleString('id-ID')}</TableCell>
+                              <TableCell>
+                                <Badge className={cn(trx.status === 'cancelled' ? 'bg-rose-100 text-rose-700 border-none' : trx.status === 'pending_cancellation' ? 'bg-amber-100 text-amber-700 border-none animate-pulse' : 'bg-emerald-100 text-emerald-700 border-none')}>
+                                  {trx.status === 'cancelled' ? 'Batal' : trx.status === 'pending_cancellation' ? 'Pending Approval' : 'Success'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {trx.status !== 'cancelled' && trx.status !== 'pending_cancellation' && isWithin7Days && (
+                                  <Button size="sm" variant="outline" className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs">
+                                    {isSuperAdmin ? 'Batalkan' : 'Ajukan Batal'}
+                                  </Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </CardContent>
