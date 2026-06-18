@@ -409,6 +409,28 @@ export default function App() {
     localStorage.setItem('transactions', JSON.stringify(updated));
   };
 
+  const handleExportReport = () => {
+    const headers = ['Product/SKU', 'Size', 'Color', 'Stock', 'STR (%)', 'Status'];
+    const rows = inventoryAnalysis.map(item => [
+      `${item.name} (${item.sku})`,
+      item.size,
+      item.color,
+      item.stock,
+      item.str.toFixed(1) + '%',
+      item.str < 30 ? 'Underperforming' : item.str > 70 ? 'High Performing' : 'Normal'
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + headers.join(",") + "\n" 
+      + rows.map(e => e.join(",")).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `inventory_analysis_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Fetch system data when 'system' tab is active
   useEffect(() => {
     if (activeTab === 'system') {
@@ -820,32 +842,9 @@ export default function App() {
                     <p className="text-gray-500">Identifying underperforming combinations and strategic improvements.</p>
                   </div>
                   <div className="flex gap-2">
-                    <input type="file" id="nota-upload" className="hidden" accept="image/*" onChange={(e) => handleOcrUpload(e, 'restock')} />
-                    <Button onClick={() => document.getElementById('nota-upload')?.click()} disabled={isOcrLoading} variant="outline" className="border-royal text-royal flex items-center gap-2">
-                      {isOcrLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                      Scan Nota Supplier
-                    </Button>
-                    <Button className="bg-royal text-white">Export Report</Button>
+                    <Button onClick={handleExportReport} className="bg-royal text-white">Export Report</Button>
                   </div>
                 </div>
-
-                {/* Underperforming Alert */}
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="bg-rose-50 border border-rose-100 rounded-2xl p-6 flex items-start gap-4"
-                >
-                  <div className="p-3 bg-rose-100 rounded-xl">
-                    <AlertTriangle className="w-6 h-6 text-rose-600" />
-                  </div>
-                  <div>
-                    <h4 className="text-rose-900 font-bold mb-1">Critical Insight: Low Sell-Through Detected</h4>
-                    <p className="text-rose-700 text-sm leading-relaxed">
-                      Terdapat <strong>{underperformingItems.length} kombinasi SKU</strong> dengan Sell-Through Rate di bawah 30%. 
-                      Kombinasi ukuran <strong>XL</strong> dan <strong>L</strong> pada kategori Gamis menunjukkan pergerakan stok paling lambat.
-                    </p>
-                  </div>
-                </motion.div>
 
                 {/* Detailed Analysis Table */}
                 <Card className="border-none shadow-sm">
@@ -876,7 +875,13 @@ export default function App() {
                           <TableRow key={item.sku} className={cn(item.str < 30 ? "bg-rose-50/30" : "")}>
                             <TableCell>
                               <div className="font-medium">{item.name}</div>
-                              <div className="text-[10px] font-mono text-gray-400">{item.sku}</div>
+                              <div className="text-[10px] font-mono text-gray-400 mb-1">{item.sku}</div>
+                              {item.str < 30 && (
+                                <div className="mt-1 flex items-start gap-1 text-[10px] text-rose-700 bg-rose-100/50 p-1.5 rounded border border-rose-100">
+                                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                                  <span>Insight: Pergerakan stok lambat. Pertimbangkan diskon.</span>
+                                </div>
+                              )}
                             </TableCell>
                             <TableCell className="text-center"><Badge variant="outline">{item.size}</Badge></TableCell>
                             <TableCell className="text-center">
