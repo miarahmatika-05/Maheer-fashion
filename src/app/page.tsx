@@ -431,14 +431,14 @@ export default function App() {
     document.body.removeChild(link);
   };
 
-  const handleExportPajak = () => {
+  const handleExportZakat = () => {
     const profit = dbStats?.totalProfit || 0;
     const zakat = profit * 0.025;
     const headers = ['Keterangan', 'Nominal (Rp)'];
     const rows = [
       ['Total Keuntungan (Net Profit)', profit.toString()],
-      ['Zakat Perniagaan (Pengurang Pajak)', zakat.toString()],
-      ['Laba Bersih Kena Pajak', (profit - zakat).toString()]
+      ['Kewajiban Zakat Perniagaan (2.5%)', zakat.toString()],
+      ['Laba Bersih Setelah Zakat', (profit - zakat).toString()]
     ];
     const csvContent = "data:text/csv;charset=utf-8," 
       + headers.join(",") + "\n" 
@@ -446,7 +446,7 @@ export default function App() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `laporan_pajak_zakat_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute("download", `laporan_zakat_perniagaan_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1545,7 +1545,7 @@ export default function App() {
                     <p className="text-gray-500">Hitung kewajiban zakat dari profit bisnis Anda secara transparan.</p>
                   </div>
                   <div className="flex gap-2">
-                    <Button onClick={handleExportPajak} className="bg-royal text-white">Unduh Laporan Pajak</Button>
+                    <Button onClick={handleExportZakat} className="bg-royal text-white">Unduh Laporan Zakat</Button>
                   </div>
                 </div>
 
