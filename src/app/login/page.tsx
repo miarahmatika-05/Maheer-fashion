@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 export default function LoginPage() {
   const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -38,7 +39,17 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      if (isLogin) {
+      if (isForgotPassword) {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/login`,
+        });
+        if (error) throw error;
+        setSuccess('Password reset link has been sent to your email.');
+        setTimeout(() => {
+          setIsForgotPassword(false);
+          setSuccess(null);
+        }, 4000);
+      } else if (isLogin) {
         try {
           const { error } = await supabase.auth.signInWithPassword({
             email,
@@ -168,12 +179,18 @@ export default function LoginPage() {
           >
             <div className="mb-8">
               <h2 className="text-3xl font-bold tracking-tight text-gray-900">
-                {isLogin ? 'Welcome back' : 'Create an account'}
+                {isForgotPassword 
+                  ? 'Reset Password'
+                  : isLogin 
+                    ? 'Welcome back' 
+                    : 'Create an account'}
               </h2>
               <p className="text-gray-500 mt-2">
-                {isLogin 
-                  ? 'Enter your credentials to access your dashboard' 
-                  : 'Sign up to start managing your fashion inventory'}
+                {isForgotPassword
+                  ? 'Enter your email address and we will send you a link to reset your password'
+                  : isLogin 
+                    ? 'Enter your credentials to access your dashboard' 
+                    : 'Sign up to start managing your fashion inventory'}
               </p>
             </div>
 
@@ -245,30 +262,48 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium text-gray-700">Password</label>
-                  {isLogin && (
-                    <a href="#" className="text-xs font-medium text-royal hover:underline">
+                  {isLogin && !isForgotPassword && (
+                    <button 
+                      type="button" 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setIsForgotPassword(true);
+                        setError(null);
+                        setSuccess(null);
+                      }}
+                      className="text-xs font-medium text-royal hover:underline"
+                    >
                       Forgot password?
-                    </a>
+                    </button>
                   )}
                 </div>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full pl-10 pr-12 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-royal/20 focus:border-royal transition-all"
-                    required
-                  />
-                  <button 
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
+                <AnimatePresence mode="wait">
+                  {!isForgotPassword && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
+                      animate={{ opacity: 1, height: 'auto', overflow: 'visible' }}
+                      exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
+                      className="relative"
+                    >
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full pl-10 pr-12 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-royal/20 focus:border-royal transition-all"
+                        required={!isForgotPassword}
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                      >
+                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               <Button
@@ -280,7 +315,7 @@ export default function LoginPage() {
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    {isLogin ? 'Sign In' : 'Create Account'}
+                    {isForgotPassword ? 'Send Reset Link' : isLogin ? 'Sign In' : 'Create Account'}
                     <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                   </>
                 )}
@@ -288,18 +323,37 @@ export default function LoginPage() {
             </form>
 
             <div className="mt-8 text-center text-sm text-gray-500">
-              {isLogin ? "Don't have an account? " : "Already have an account? "}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsLogin(!isLogin);
-                  setError(null);
-                  setSuccess(null);
-                }}
-                className="font-semibold text-royal hover:underline transition-colors"
-              >
-                {isLogin ? 'Sign up' : 'Sign in'}
-              </button>
+              {isForgotPassword ? (
+                <>
+                  Remember your password?{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsForgotPassword(false);
+                      setError(null);
+                      setSuccess(null);
+                    }}
+                    className="font-semibold text-royal hover:underline transition-colors"
+                  >
+                    Back to Sign in
+                  </button>
+                </>
+              ) : (
+                <>
+                  {isLogin ? "Don't have an account? " : "Already have an account? "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsLogin(!isLogin);
+                      setError(null);
+                      setSuccess(null);
+                    }}
+                    className="font-semibold text-royal hover:underline transition-colors"
+                  >
+                    {isLogin ? 'Sign up' : 'Sign in'}
+                  </button>
+                </>
+              )}
             </div>
           </motion.div>
         </div>
