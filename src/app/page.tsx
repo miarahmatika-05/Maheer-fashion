@@ -1177,7 +1177,7 @@ export default function App() {
                         Cart ({cart.length})
                       </CardTitle>
                     </CardHeader>
-                    <ScrollArea className="flex-1 p-4">
+                    <div className="flex-1 overflow-y-auto p-4 min-h-0">
                       {cart.length === 0 ? (
                         <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-3 mt-10">
                           <ShoppingCart className="w-12 h-12 opacity-20" />
@@ -1225,7 +1225,7 @@ export default function App() {
                           ))}
                         </div>
                       )}
-                    </ScrollArea>
+                    </div>
                     <div className="border-t bg-gray-50/50 p-4 space-y-4">
                       {/* Channels & Payment */}
                       <div className="grid grid-cols-2 gap-4">
