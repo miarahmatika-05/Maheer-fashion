@@ -431,6 +431,27 @@ export default function App() {
     document.body.removeChild(link);
   };
 
+  const handleExportPajak = () => {
+    const profit = dbStats?.totalProfit || 0;
+    const zakat = profit * 0.025;
+    const headers = ['Keterangan', 'Nominal (Rp)'];
+    const rows = [
+      ['Total Keuntungan (Net Profit)', profit.toString()],
+      ['Zakat Perniagaan (Pengurang Pajak)', zakat.toString()],
+      ['Laba Bersih Kena Pajak', (profit - zakat).toString()]
+    ];
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + headers.join(",") + "\n" 
+      + rows.map(e => e.join(",")).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `laporan_pajak_zakat_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Fetch system data when 'system' tab is active
   useEffect(() => {
     if (activeTab === 'system') {
@@ -1524,7 +1545,7 @@ export default function App() {
                     <p className="text-gray-500">Hitung kewajiban zakat dari profit bisnis Anda secara transparan.</p>
                   </div>
                   <div className="flex gap-2">
-                    <Button className="bg-royal text-white">Unduh Laporan Zakat</Button>
+                    <Button onClick={handleExportPajak} className="bg-royal text-white">Unduh Laporan Pajak</Button>
                   </div>
                 </div>
 
