@@ -1169,14 +1169,14 @@ export default function App() {
                   </div>
 
                   {/* Right Pane: Cart */}
-                  <Card className="border-none shadow-lg sticky top-0 flex flex-col h-[calc(100vh-12rem)]">
+                  <Card className="border-none shadow-lg sticky top-4 flex flex-col max-h-[calc(100vh-2rem)] overflow-y-auto">
                     <CardHeader className="border-b bg-gray-50/50 py-4">
                       <CardTitle className="font-serif italic text-lg flex items-center gap-2">
                         <ShoppingCart className="w-5 h-5" />
                         Cart ({cart.length})
                       </CardTitle>
                     </CardHeader>
-                    <div className="flex-1 overflow-y-auto p-4 min-h-0">
+                    <div className="flex-1 p-4 min-h-[150px]">
                       {cart.length === 0 ? (
                         <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-3 mt-10">
                           <ShoppingCart className="w-12 h-12 opacity-20" />
