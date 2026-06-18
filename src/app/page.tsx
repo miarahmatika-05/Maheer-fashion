@@ -341,9 +341,14 @@ export default function App() {
     }).filter(item => item.quantity > 0));
   };
 
+  const removeFromCart = (sku: string) => {
+    setCart(prev => prev.filter(item => item.product.sku !== sku));
+  };
+
+  // Cart Calculations
   const cartSubtotal = cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
   const discountAmount = Math.floor(cartSubtotal * ((discountPercent || 0) / 100));
-  const cartAdminFee = posChannel !== 'Offline' ? Math.floor((cartSubtotal - discountAmount) * 0.03) : 0; 
+  const cartAdminFee = 0; // Removed per user request
   const cartTotal = cartSubtotal - discountAmount + cartAdminFee;
   const changeAmount = paymentMethod === 'Cash' && typeof cashReceived === 'number' ? cashReceived - cartTotal : 0;
 
@@ -1195,20 +1200,25 @@ export default function App() {
                                   <span>Rp {(item.product.price).toLocaleString()}</span>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1 border">
-                                <button 
-                                  onClick={() => updateCartQty(item.product.sku, -1)}
-                                  className="w-6 h-6 flex items-center justify-center rounded bg-white shadow-sm hover:bg-gray-100 text-gray-600"
-                                >
-                                  {item.quantity === 1 ? <Trash2 className="w-3 h-3 text-rose-500" /> : <Minus className="w-3 h-3" />}
-                                </button>
-                                <span className="w-6 text-center text-sm font-bold">{item.quantity}</span>
-                                <button 
-                                  onClick={() => updateCartQty(item.product.sku, 1)}
-                                  disabled={item.quantity >= item.product.stock}
-                                  className="w-6 h-6 flex items-center justify-center rounded bg-white shadow-sm hover:bg-gray-100 text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  <Plus className="w-3 h-3" />
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1 border">
+                                  <button 
+                                    onClick={() => updateCartQty(item.product.sku, -1)}
+                                    className="w-6 h-6 flex items-center justify-center rounded bg-white shadow-sm hover:bg-gray-100 text-gray-600"
+                                  >
+                                    <Minus className="w-3 h-3" />
+                                  </button>
+                                  <span className="w-6 text-center text-sm font-bold">{item.quantity}</span>
+                                  <button 
+                                    onClick={() => updateCartQty(item.product.sku, 1)}
+                                    disabled={item.quantity >= item.product.stock}
+                                    className="w-6 h-6 flex items-center justify-center rounded bg-white shadow-sm hover:bg-gray-100 text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                  </button>
+                                </div>
+                                <button onClick={() => removeFromCart(item.product.sku)} className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-md transition-colors">
+                                  <Trash2 className="w-4 h-4" />
                                 </button>
                               </div>
                             </motion.div>
@@ -1259,12 +1269,32 @@ export default function App() {
                       </div>
 
                       {paymentMethod === 'Transfer' && (
-                        <div className="mt-3 p-3 border border-royal/20 bg-royal/5 rounded-xl flex items-center justify-between">
-                          <span className="text-xs">Verifikasi Struk (AI):</span>
-                          <input type="file" id="struk-upload" className="hidden" accept="image/*" onChange={(e) => handleOcrUpload(e, 'payment')} />
-                          <Button size="sm" onClick={() => document.getElementById('struk-upload')?.click()} disabled={isOcrLoading} variant="outline" className="border-royal text-royal h-7 px-2 text-xs">
-                            {isOcrLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3 mr-1" />} Scan
-                          </Button>
+                        <div className="mt-3 p-3 border border-royal/20 bg-royal/5 rounded-xl space-y-3">
+                          <div className="flex items-center gap-3">
+                            <div className="bg-white p-2 rounded-lg border shadow-sm">
+                              <CreditCard className="w-5 h-5 text-royal" />
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">BCA - Maheer Fashion</p>
+                              <p className="font-mono font-bold text-gray-800">123 456 7890</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between border-t border-royal/10 pt-3 mt-1">
+                            <span className="text-xs font-medium text-gray-600">Verifikasi Struk (AI):</span>
+                            <input type="file" id="struk-upload" className="hidden" accept="image/*" onChange={(e) => handleOcrUpload(e, 'payment')} />
+                            <Button size="sm" onClick={() => document.getElementById('struk-upload')?.click()} disabled={isOcrLoading} variant="outline" className="border-royal text-royal h-7 px-2 text-xs">
+                              {isOcrLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3 mr-1" />} Scan Bukti
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {paymentMethod === 'QRIS' && (
+                        <div className="mt-3 p-4 border border-royal/20 bg-royal/5 rounded-xl flex flex-col items-center justify-center space-y-2">
+                          <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-100">
+                             <QrCode className="w-24 h-24 text-gray-800" />
+                          </div>
+                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Scan QRIS untuk Membayar</p>
                         </div>
                       )}
 
