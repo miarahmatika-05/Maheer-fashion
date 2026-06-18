@@ -409,6 +409,63 @@ export default function App() {
     localStorage.setItem('transactions', JSON.stringify(updated));
   };
 
+  // Fetch system data when 'system' tab is active
+  useEffect(() => {
+    if (activeTab === 'system') {
+      const fetchSysData = async () => {
+        try {
+          const [healthRes, backupRes, retentionRes] = await Promise.all([
+            fetch('/api/health').catch(() => null),
+            fetch('/api/backup-status').catch(() => null),
+            fetch('/api/data-retention').catch(() => null),
+          ]);
+          
+          if (healthRes?.ok) {
+            const hData = await healthRes.json();
+            setHealthData(hData);
+          } else {
+            setHealthData({ status: 'error', latency: 0 });
+          }
+          
+          if (backupRes?.ok) {
+            const bData = await backupRes.json();
+            setBackupData({
+              lastDrill: bData.disaster_recovery?.last_drill_date ? new Date(bData.disaster_recovery.last_drill_date).toLocaleDateString() : 'Unknown',
+              status: bData.status
+            });
+          } else {
+            setBackupData({ lastDrill: 'Error fetching', status: 'error' });
+          }
+
+          if (retentionRes?.ok) {
+            const rData = await retentionRes.json();
+            setRetentionData({ eligibleCount: rData.affected_count || 0 });
+          } else {
+            setRetentionData({ eligibleCount: 0 });
+          }
+        } catch (err) {
+          console.error("Failed to fetch system data:", err);
+        }
+      };
+      fetchSysData();
+    }
+  }, [activeTab]);
+
+  const handleExecuteAnonymization = async () => {
+    try {
+      const res = await fetch('/api/data-retention', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        setRetentionData({ eligibleCount: 0 });
+      } else {
+        alert(data.message || 'Error executing anonymization');
+      }
+    } catch (err) {
+      alert('Network error executing anonymization');
+    }
+  };
+
   if (isAuthLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center">
@@ -1712,7 +1769,7 @@ export default function App() {
                       {retentionData ? (
                         <div className="space-y-4">
                           <p>Transaksi lama ({'>'}3 tahun): {retentionData.eligibleCount} records</p>
-                          <Button variant="outline" className="border-rose-200 text-rose-600">Eksekusi Anonimisasi</Button>
+                          <Button variant="outline" onClick={handleExecuteAnonymization} className="border-rose-200 text-rose-600">Eksekusi Anonimisasi</Button>
                         </div>
                       ) : <p className="text-gray-500">Loading retention data...</p>}
                     </CardContent></Card>
