@@ -900,7 +900,12 @@ export default function App() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <Button variant="ghost" size="sm" className="text-royal hover:bg-royal/5 gap-1">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="text-royal hover:bg-royal/5 gap-1"
+                                onClick={() => setActiveTab('purchasing')}
+                              >
                                 <Plus className="w-3 h-3" />
                                 Add Stock
                               </Button>
