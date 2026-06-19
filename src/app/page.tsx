@@ -314,7 +314,11 @@ export default function App() {
             fetchDashboardStats()
           ]);
           
-          if (pData.length > 0) setProducts(pData);
+          if (pData.length > 0) {
+            setProducts(pData);
+          } else {
+            setProducts(DUMMY_PRODUCTS);
+          }
           if (tData.length > 0) setTransactions(tData);
           if (sData) setDbStats(sData);
         } catch (err) {
@@ -521,16 +525,51 @@ export default function App() {
     document.body.removeChild(link);
   };
 
-  const JOURNAL_ENTRIES = [
-    { id: 1, date: 'April 07, 2026', type: 'sales', desc: 'Penjualan Gamis Al-Zahra (Shopee)', account: 'Kas / Bank', debit: 450000, credit: 0 },
-    { id: 2, date: 'April 07, 2026', type: 'sales', desc: 'Penjualan Gamis Al-Zahra (Shopee)', account: 'Pendapatan Penjualan', debit: 0, credit: 450000 },
-    { id: 3, date: 'April 06, 2026', type: 'purchase', desc: 'Pembelian Kain Silk (Supplier A)', account: 'Persediaan Barang', debit: 5000000, credit: 0 },
-    { id: 4, date: 'April 06, 2026', type: 'purchase', desc: 'Pembelian Kain Silk (Supplier A)', account: 'Hutang Usaha', debit: 0, credit: 5000000 },
-  ];
+  // --- Dynamic Journal Entries ---
+  const dynamicJournalEntries = useMemo(() => {
+    if (!transactions || transactions.length === 0) return [];
+    
+    const entries: { date: string, desc: string, account: string, debit: number, credit: number, type: 'sales' | 'purchase' }[] = [];
+    
+    transactions.forEach(t => {
+      if (t.status === 'cancelled') return;
+      
+      const formattedDate = new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+      
+      // Kas bertambah (Debit)
+      entries.push({
+        date: formattedDate,
+        desc: `Penerimaan Penjualan (${t.channel}) - ${t.id}`,
+        account: '1-1001 Kas & Bank',
+        debit: t.total_revenue,
+        credit: 0,
+        type: 'sales'
+      });
+      // Pendapatan bertambah (Kredit)
+      entries.push({
+        date: formattedDate,
+        desc: `Pendapatan Penjualan - ${t.id}`,
+        account: '4-1001 Pendapatan Penjualan',
+        debit: 0,
+        credit: t.total_revenue,
+        type: 'sales'
+      });
+    });
+    
+    // Sort by date descending
+    entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return entries;
+  }, [transactions]);
+
+  const handleExportGL = () => {
+    const rows = dynamicJournalEntries.map(j => [
+      j.date, j.desc, j.account, j.debit, j.credit
+    ]);
+  };
 
   const handleExportJournals = () => {
     const headers = ['Date', 'Description', 'Type', 'Account', 'Debit', 'Credit'];
-    const rows = JOURNAL_ENTRIES.map(j => [
+    const rows = dynamicJournalEntries.map(j => [
       `"${j.date}"`, `"${j.desc}"`, j.type === 'sales' ? 'Penjualan' : 'Pembelian', `"${j.account}"`, j.debit, j.credit
     ]);
     const csvContent = "data:text/csv;charset=utf-8," 
@@ -1132,19 +1171,19 @@ export default function App() {
                   <Card className="border-none shadow-sm">
                     <CardContent className="p-6">
                       <p className="text-sm font-medium text-gray-500 mb-1">Total Purchases (MTD)</p>
-                      <h3 className="text-2xl font-bold tracking-tight">Rp 24.5M</h3>
+                      <h3 className="text-2xl font-bold tracking-tight">Rp 0</h3>
                     </CardContent>
                   </Card>
                   <Card className="border-none shadow-sm">
                     <CardContent className="p-6">
                       <p className="text-sm font-medium text-gray-500 mb-1">Pending Invoices</p>
-                      <h3 className="text-2xl font-bold tracking-tight">3</h3>
+                      <h3 className="text-2xl font-bold tracking-tight">0</h3>
                     </CardContent>
                   </Card>
                   <Card className="border-none shadow-sm">
                     <CardContent className="p-6">
                       <p className="text-sm font-medium text-gray-500 mb-1">Suppliers</p>
-                      <h3 className="text-2xl font-bold tracking-tight">12</h3>
+                      <h3 className="text-2xl font-bold tracking-tight">0</h3>
                     </CardContent>
                   </Card>
                 </div>
@@ -1166,18 +1205,9 @@ export default function App() {
                       </TableHeader>
                       <TableBody>
                         <TableRow>
-                          <TableCell className="font-mono text-xs font-bold">PUR-2026-001</TableCell>
-                          <TableCell className="text-sm">April 05, 2026</TableCell>
-                          <TableCell className="text-sm">Batik Trusmi</TableCell>
-                          <TableCell className="text-right font-bold">Rp 12,500,000</TableCell>
-                          <TableCell><Badge className="bg-emerald-100 text-emerald-700 border-none">Paid</Badge></TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell className="font-mono text-xs font-bold">PUR-2026-002</TableCell>
-                          <TableCell className="text-sm">April 06, 2026</TableCell>
-                          <TableCell className="text-sm">Textile Indah</TableCell>
-                          <TableCell className="text-right font-bold">Rp 8,200,000</TableCell>
-                          <TableCell><Badge className="bg-amber-100 text-amber-700 border-none">Pending</Badge></TableCell>
+                          <TableCell colSpan={5} className="text-center text-gray-500 py-6">
+                            Tidak ada data pembelian.
+                          </TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>
@@ -1466,8 +1496,8 @@ export default function App() {
                       </button>
                     </div>
                     <div className="flex-1 overflow-y-auto space-y-6 pr-2">
-                      {Array.from(new Set(JOURNAL_ENTRIES.map(j => j.account))).map(account => {
-                        const entries = JOURNAL_ENTRIES.filter(j => j.account === account);
+                      {Array.from(new Set(dynamicJournalEntries.map(j => j.account))).map(account => {
+                        const entries = dynamicJournalEntries.filter(j => j.account === account);
                         const tDebit = entries.reduce((sum, j) => sum + j.debit, 0);
                         const tCredit = entries.reduce((sum, j) => sum + j.credit, 0);
                         return (
@@ -1716,8 +1746,8 @@ export default function App() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {JOURNAL_ENTRIES.map(j => (
-                              <TableRow key={j.id}>
+                            {dynamicJournalEntries.map((j, i) => (
+                              <TableRow key={i}>
                                 <TableCell className="text-sm">{j.date}</TableCell>
                                 <TableCell className="text-sm">{j.desc}</TableCell>
                                 <TableCell className="text-sm">{j.account}</TableCell>
@@ -1745,8 +1775,8 @@ export default function App() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {JOURNAL_ENTRIES.filter(j => j.type === 'sales').map(j => (
-                              <TableRow key={j.id}>
+                            {dynamicJournalEntries.filter(j => j.type === 'sales').map((j, i) => (
+                              <TableRow key={i}>
                                 <TableCell className="text-sm">{j.date}</TableCell>
                                 <TableCell className="text-sm">{j.desc}</TableCell>
                                 <TableCell className="text-sm">{j.account}</TableCell>
@@ -1774,8 +1804,8 @@ export default function App() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {JOURNAL_ENTRIES.filter(j => j.type === 'purchase').map(j => (
-                              <TableRow key={j.id}>
+                            {dynamicJournalEntries.filter(j => j.type === 'purchase').map((j, i) => (
+                              <TableRow key={i}>
                                 <TableCell className="text-sm">{j.date}</TableCell>
                                 <TableCell className="text-sm">{j.desc}</TableCell>
                                 <TableCell className="text-sm">{j.account}</TableCell>
