@@ -900,7 +900,7 @@ export default function App() {
                             ))}
                           </Pie>
                           <Tooltip 
-                            formatter={(value: number) => `Rp ${(value / 1000000).toFixed(1)}M`}
+                            formatter={(value: any) => `Rp ${(Number(value) / 1000000).toFixed(1)}M`}
                           />
                         </PieChart>
                       </ResponsiveContainer>
