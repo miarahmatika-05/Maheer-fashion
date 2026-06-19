@@ -1,10 +1,10 @@
 import { Product, Transaction } from './types';
 
 export const DUMMY_PRODUCTS: Product[] = [
-  { sku: 'GM-ALZ-XL-RBL', name: 'Gamis Al-Zahra', category: 'Gamis', size: 'XL', color: 'Royal Blue', hpp: 300000, price: 450000, stock: 12, initial_stock: 50 },
-  { sku: 'GM-ALZ-L-RBL', name: 'Gamis Al-Zahra', category: 'Gamis', size: 'L', color: 'Royal Blue', hpp: 300000, price: 450000, stock: 5, initial_stock: 50 },
-  { sku: 'KM-MDN-L-GLD', name: 'Koko Modern', category: 'Koko', size: 'L', color: 'Gold', hpp: 200000, price: 350000, stock: 25, initial_stock: 100 },
-  { sku: 'HJ-SLK-ALL-WHT', name: 'Hijab Silk', category: 'Hijab', size: 'All Size', color: 'White', hpp: 50000, price: 150000, stock: 80, initial_stock: 200 },
+  { sku: 'GM-ALZ-XL-RBL', name: 'Gamis Al-Zahra', category: 'Gamis', size: 'XL', color: 'Royal Blue', hpp: 300000, price: 450000, stock: 12, initial_stock: 50, image_url: 'https://images.unsplash.com/photo-1589156229687-496a31ad1d1f?auto=format&fit=crop&q=80&w=200' },
+  { sku: 'GM-ALZ-L-RBL', name: 'Gamis Al-Zahra', category: 'Gamis', size: 'L', color: 'Royal Blue', hpp: 300000, price: 450000, stock: 5, initial_stock: 50, image_url: 'https://images.unsplash.com/photo-1589156229687-496a31ad1d1f?auto=format&fit=crop&q=80&w=200' },
+  { sku: 'KM-MDN-L-GLD', name: 'Koko Modern', category: 'Koko', size: 'L', color: 'Gold', hpp: 200000, price: 350000, stock: 25, initial_stock: 100, image_url: 'https://images.unsplash.com/photo-1620012253295-c159f0865369?auto=format&fit=crop&q=80&w=200' },
+  { sku: 'HJ-SLK-ALL-WHT', name: 'Hijab Silk', category: 'Hijab', size: 'All Size', color: 'White', hpp: 50000, price: 150000, stock: 80, initial_stock: 200, image_url: 'https://images.unsplash.com/photo-1620012253295-c159f0865369?auto=format&fit=crop&q=80&w=200' },
 ];
 
 export const DUMMY_TRANSACTIONS: Transaction[] = [

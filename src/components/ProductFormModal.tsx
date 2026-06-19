@@ -26,6 +26,7 @@ export function ProductFormModal({ isOpen, onClose, onSuccess }: Props) {
   const [hpp, setHpp] = useState('');
   const [price, setPrice] = useState('');
   const [stock, setStock] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
 
   const [generatedSku, setGeneratedSku] = useState('');
 
@@ -63,6 +64,7 @@ export function ProductFormModal({ isOpen, onClose, onSuccess }: Props) {
         price: Number(price),
         stock: Number(stock),
         initial_stock: Number(stock),
+        image_url: imageUrl || undefined,
       };
 
       const newProd = await addProduct(pData);
@@ -76,6 +78,7 @@ export function ProductFormModal({ isOpen, onClose, onSuccess }: Props) {
       setHpp('');
       setPrice('');
       setStock('');
+      setImageUrl('');
     } catch (err: any) {
       setErrorText(err.message || 'Terjadi kesalahan saat menyimpan produk.');
     } finally {
@@ -156,6 +159,18 @@ export function ProductFormModal({ isOpen, onClose, onSuccess }: Props) {
                   className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:border-royal focus:outline-none focus:ring-1 focus:ring-royal"
                   placeholder="Contoh: Royal Blue"
                   required
+                />
+              </div>
+
+              {/* Image URL */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">URL Gambar (Opsional)</label>
+                <input
+                  type="url"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:border-royal focus:outline-none focus:ring-1 focus:ring-royal"
+                  placeholder="https://contoh.com/gambar.jpg"
                 />
               </div>
 

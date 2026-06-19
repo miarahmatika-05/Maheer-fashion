@@ -925,14 +925,25 @@ export default function App() {
                         {inventoryAnalysis.map((item) => (
                           <TableRow key={item.sku} className={cn(item.str < 30 ? "bg-rose-50/30" : "")}>
                             <TableCell>
-                              <div className="font-medium">{item.name}</div>
-                              <div className="text-[10px] font-mono text-gray-400 mb-1">{item.sku}</div>
-                              {item.str < 30 && (
-                                <div className="mt-1 flex items-start gap-1 text-[10px] text-rose-700 bg-rose-100/50 p-1.5 rounded border border-rose-100">
-                                  <AlertTriangle className="w-3 h-3 shrink-0" />
-                                  <span>Insight: Pergerakan stok lambat. Pertimbangkan diskon.</span>
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-md bg-royal/10 flex items-center justify-center shrink-0 overflow-hidden">
+                                  {item.image_url ? (
+                                    <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <Package className="w-5 h-5 text-royal/40" />
+                                  )}
                                 </div>
-                              )}
+                                <div>
+                                  <div className="font-medium">{item.name}</div>
+                                  <div className="text-[10px] font-mono text-gray-400 mb-1">{item.sku}</div>
+                                  {item.str < 30 && (
+                                    <div className="mt-1 flex items-start gap-1 text-[10px] text-rose-700 bg-rose-100/50 p-1.5 rounded border border-rose-100">
+                                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                                      <span>Insight: Pergerakan stok lambat. Pertimbangkan diskon.</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
                             </TableCell>
                             <TableCell className="text-center"><Badge variant="outline">{item.size}</Badge></TableCell>
                             <TableCell className="text-center">
@@ -1144,8 +1155,12 @@ export default function App() {
                               )}
                               onClick={() => availableStock > 0 && addToCart(p)}
                             >
-                              <div className="w-20 min-h-[5rem] h-full bg-royal/5 flex items-center justify-center shrink-0">
-                                <Package className="w-8 h-8 text-royal/30 group-hover:scale-110 transition-transform" />
+                              <div className="w-20 min-h-[5rem] h-full bg-royal/5 flex items-center justify-center shrink-0 overflow-hidden relative">
+                                {p.image_url ? (
+                                  <img src={p.image_url} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                                ) : (
+                                  <Package className="w-8 h-8 text-royal/30 group-hover:scale-110 transition-transform" />
+                                )}
                               </div>
                               <div className="p-3 flex-1 min-w-0">
                                 <div className="flex justify-between items-start mb-1">

@@ -8,6 +8,7 @@ export interface Product {
   price: number;
   stock: number;
   initial_stock: number;
+  image_url?: string;
   created_at?: string;
 }
 
