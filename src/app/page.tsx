@@ -260,6 +260,7 @@ export default function App() {
       try {
         const { error } = await supabase.from('produk').select('count', { count: 'exact', head: true });
         if (error) throw error;
+        localStorage.removeItem('offline_mode');
         setSupabaseStatus('connected');
       } catch (err) {
         console.error('Supabase connection error:', err);
