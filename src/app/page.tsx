@@ -133,21 +133,34 @@ export default function App() {
   const dynamicSalesTrend = useMemo(() => {
     if (!transactions || transactions.length === 0) return SALES_TREND_DATA;
     
+    // Inisialisasi 6 bulan terakhir (berdasarkan bulan saat ini atau bulan dari data)
+    const monthsOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const currentMonthIdx = new Date().getMonth();
+    const last6Months = [];
+    for (let i = 5; i >= 0; i--) {
+      let mIdx = currentMonthIdx - i;
+      if (mIdx < 0) mIdx += 12;
+      last6Months.push(monthsOrder[mIdx]);
+    }
+
     const monthlyData: Record<string, { revenue: number, profit: number }> = {};
+    // Isi default 0
+    last6Months.forEach(m => {
+      monthlyData[m] = { revenue: 0, profit: 0 };
+    });
     
     transactions.forEach(t => {
       if (t.status === 'cancelled') return;
       const date = new Date(t.date);
-      const monthName = date.toLocaleString('default', { month: 'short' }); 
+      const monthName = monthsOrder[date.getMonth()]; // Lebih aman dari toLocaleString
       
       if (!monthlyData[monthName]) {
         monthlyData[monthName] = { revenue: 0, profit: 0 };
       }
       monthlyData[monthName].revenue += t.total_revenue;
-      monthlyData[monthName].profit += Math.floor(t.total_revenue * 0.25); // Estimasi profit 25%
+      monthlyData[monthName].profit += Math.floor(t.total_revenue * 0.25);
     });
 
-    const monthsOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const result = Object.keys(monthlyData).map(month => ({
       name: month,
       revenue: monthlyData[month].revenue,
@@ -155,7 +168,7 @@ export default function App() {
     }));
     
     result.sort((a, b) => monthsOrder.indexOf(a.name) - monthsOrder.indexOf(b.name));
-    return result.length > 0 ? result : SALES_TREND_DATA;
+    return result;
   }, [transactions]);
 
   const dynamicChannelData = useMemo(() => {
