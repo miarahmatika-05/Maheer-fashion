@@ -167,17 +167,9 @@ export default function App() {
       channelMap[t.channel] = (channelMap[t.channel] || 0) + t.total_revenue;
     });
     
-    const colorMap: Record<string, string> = {
-      'Offline': '#000000',
-      'Shopee': '#F97316',
-      'TikTok Shop': '#111111',
-      'WA': '#25D366'
-    };
-    
     const result = Object.keys(channelMap).map((channel) => ({
       name: channel,
       value: channelMap[channel],
-      color: colorMap[channel] || '#888888'
     }));
     
     return result.length > 0 ? result : CHANNEL_PERFORMANCE;
@@ -904,7 +896,7 @@ export default function App() {
                             dataKey="value"
                           >
                             {dynamicChannelData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                             ))}
                           </Pie>
                           <Tooltip 
@@ -913,9 +905,9 @@ export default function App() {
                         </PieChart>
                       </ResponsiveContainer>
                       <div className="flex justify-center gap-4 mt-4">
-                        {dynamicChannelData.map(channel => (
+                        {dynamicChannelData.map((channel, index) => (
                           <div key={channel.name} className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: channel.color }}></div>
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
                             <span className="text-xs text-gray-600">{channel.name}</span>
                           </div>
                         ))}
