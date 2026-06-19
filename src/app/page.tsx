@@ -126,8 +126,63 @@ export default function App() {
   
   // WhatsApp Widget State
   const [isWaOpen, setIsWaOpen] = useState(false);
-  const [waMessages, setWaMessages] = useState<{role: 'user' | 'bot', text: string}[]>([]);
+  const [waMessages, setWaMessages] = useState<{sender: 'bot' | 'user', text: string}[]>([]);
   const [waInput, setWaInput] = useState('');
+
+  // --- Dynamic Dashboard Data ---
+  const dynamicSalesTrend = useMemo(() => {
+    if (!transactions || transactions.length === 0) return SALES_TREND_DATA;
+    
+    const monthlyData: Record<string, { revenue: number, profit: number }> = {};
+    
+    transactions.forEach(t => {
+      if (t.status === 'cancelled') return;
+      const date = new Date(t.date);
+      const monthName = date.toLocaleString('default', { month: 'short' }); 
+      
+      if (!monthlyData[monthName]) {
+        monthlyData[monthName] = { revenue: 0, profit: 0 };
+      }
+      monthlyData[monthName].revenue += t.total_revenue;
+      monthlyData[monthName].profit += Math.floor(t.total_revenue * 0.25); // Estimasi profit 25%
+    });
+
+    const monthsOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const result = Object.keys(monthlyData).map(month => ({
+      name: month,
+      revenue: monthlyData[month].revenue,
+      profit: monthlyData[month].profit
+    }));
+    
+    result.sort((a, b) => monthsOrder.indexOf(a.name) - monthsOrder.indexOf(b.name));
+    return result.length > 0 ? result : SALES_TREND_DATA;
+  }, [transactions]);
+
+  const dynamicChannelData = useMemo(() => {
+    if (!transactions || transactions.length === 0) return CHANNEL_PERFORMANCE;
+    
+    const channelMap: Record<string, number> = {};
+    transactions.forEach(t => {
+      if (t.status === 'cancelled') return;
+      channelMap[t.channel] = (channelMap[t.channel] || 0) + t.total_revenue;
+    });
+    
+    const colorMap: Record<string, string> = {
+      'Offline': '#000000',
+      'Shopee': '#F97316',
+      'TikTok Shop': '#111111',
+      'WA': '#25D366'
+    };
+    
+    const result = Object.keys(channelMap).map((channel) => ({
+      name: channel,
+      value: channelMap[channel],
+      color: colorMap[channel] || '#888888'
+    }));
+    
+    return result.length > 0 ? result : CHANNEL_PERFORMANCE;
+  }, [transactions]);
+  // ---------------------------------
 
   // Handler for OCR Simulation
   const handleOcrUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'restock' | 'payment') => {
@@ -171,7 +226,7 @@ export default function App() {
   const handleSendWaMessage = async () => {
     if (!waInput.trim()) return;
     const userText = waInput;
-    setWaMessages(prev => [...prev, { role: 'user', text: userText }]);
+    setWaMessages(prev => [...prev, { sender: 'user', text: userText }]);
     setWaInput('');
     
     try {
@@ -186,12 +241,12 @@ export default function App() {
       });
       const data = await res.json();
       if (data.success) {
-        setWaMessages(prev => [...prev, { role: 'bot', text: data.response }]);
+        setWaMessages(prev => [...prev, { sender: 'bot', text: data.response }]);
       } else {
-        setWaMessages(prev => [...prev, { role: 'bot', text: 'Maaf, sistem bot sedang error.' }]);
+        setWaMessages(prev => [...prev, { sender: 'bot', text: 'Maaf, sistem bot sedang error.' }]);
       }
     } catch (err) {
-      setWaMessages(prev => [...prev, { role: 'bot', text: 'Koneksi ke bot terputus.' }]);
+      setWaMessages(prev => [...prev, { sender: 'bot', text: 'Koneksi ke bot terputus.' }]);
     }
   };
 
@@ -813,7 +868,7 @@ export default function App() {
                     </CardHeader>
                     <CardContent className="h-[350px]">
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={SALES_TREND_DATA}>
+                        <AreaChart data={dynamicSalesTrend}>
                           <defs>
                             <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                               <stop offset="5%" stopColor="#5B7C99" stopOpacity={0.1}/>
@@ -839,15 +894,32 @@ export default function App() {
                     <CardContent className="h-[350px]">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie data={CHANNEL_PERFORMANCE} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                            {CHANNEL_PERFORMANCE.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          <Pie
+                            data={dynamicChannelData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={80}
+                            paddingAngle={5}
+                            dataKey="value"
+                          >
+                            {dynamicChannelData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
                             ))}
                           </Pie>
-                          <Tooltip />
-                          <Legend verticalAlign="bottom" height={36}/>
+                          <Tooltip 
+                            formatter={(value: number) => `Rp ${(value / 1000000).toFixed(1)}M`}
+                          />
                         </PieChart>
                       </ResponsiveContainer>
+                      <div className="flex justify-center gap-4 mt-4">
+                        {dynamicChannelData.map(channel => (
+                          <div key={channel.name} className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: channel.color }}></div>
+                            <span className="text-xs text-gray-600">{channel.name}</span>
+                          </div>
+                        ))}
+                      </div>
                     </CardContent>
                   </Card>
                 </div>
