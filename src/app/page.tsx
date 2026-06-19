@@ -83,6 +83,7 @@ import {
   TableRow 
 } from '@/components/ui/table';
 import { ProductFormModal } from '@/components/ProductFormModal';
+import { CSVImporterModal } from '@/components/CSVImporterModal';
 import { cn } from '@/lib/utils';
 import { 
   DUMMY_PRODUCTS, 
@@ -102,6 +103,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('overview');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [selectedCustomerLocal, setSelectedCustomerLocal] = useState<any>(null);
   const [supabaseStatus, setSupabaseStatus] = useState<'connected' | 'error' | 'idle'>('idle');
   
@@ -1607,6 +1609,10 @@ export default function App() {
                       <BookOpen className="w-4 h-4" />
                       General Ledger
                     </Button>
+                    <Button onClick={() => setIsCsvModalOpen(true)} variant="outline" className="border-emerald-600 text-emerald-600 gap-2">
+                      <Database className="w-4 h-4" />
+                      Import CSV
+                    </Button>
                     <Button onClick={handleExportJournals} className="bg-royal text-white">Export Journals</Button>
                   </div>
                 </div>
@@ -2155,6 +2161,15 @@ export default function App() {
         isOpen={isProductModalOpen} 
         onClose={() => setIsProductModalOpen(false)} 
         onSuccess={handleProductAdded} 
+      />
+
+      <CSVImporterModal
+        isOpen={isCsvModalOpen}
+        onClose={() => setIsCsvModalOpen(false)}
+        onSuccess={() => {
+          setIsCsvModalOpen(false);
+          window.location.reload();
+        }}
       />
 
         {/* WhatsApp Bot Simulator Widget */}
