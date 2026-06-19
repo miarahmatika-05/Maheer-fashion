@@ -2255,7 +2255,7 @@ export default function App() {
                     </div>
                   )}
                   {waMessages.map((msg, idx) => (
-                    <div key={idx} className={`max-w-[85%] p-2 rounded-lg text-sm shadow-sm ${msg.role === 'user' ? 'bg-[#dcf8c6] ml-auto rounded-tr-none' : 'bg-white mr-auto rounded-tl-none whitespace-pre-wrap'}`}>
+                    <div key={idx} className={`max-w-[85%] p-2 rounded-lg text-sm shadow-sm ${msg.sender === 'user' ? 'bg-[#dcf8c6] ml-auto rounded-tr-none' : 'bg-white mr-auto rounded-tl-none whitespace-pre-wrap'}`}>
                       {msg.text}
                     </div>
                   ))}
