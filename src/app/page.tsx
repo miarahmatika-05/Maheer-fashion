@@ -1046,7 +1046,7 @@ export default function App() {
 
         {/* Dashboard Content */}
         <ScrollArea className="flex-1 p-8">
-          <div className="max-w-7xl mx-auto space-y-8">
+          <div className={activeTab === 'sales' ? "max-w-7xl mx-auto" : "max-w-7xl mx-auto space-y-8"}>
             {activeTab === 'overview' && (
               <div className="space-y-8 animate-in fade-in-50 duration-300">
                 {/* AI Insights Section */}
@@ -1742,7 +1742,7 @@ export default function App() {
                       />
                     </div>
                     
-                    <div className="flex flex-col gap-3 h-[calc(100vh-14rem)] overflow-y-auto pr-2 pb-10">
+                    <div className="flex flex-col gap-3 min-h-[300px] max-h-[70vh] overflow-y-auto pr-2 pb-10">
                       {displayProducts
                         .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || (p.sku || '').toLowerCase().includes(searchQuery.toLowerCase()))
                         .map(p => {
