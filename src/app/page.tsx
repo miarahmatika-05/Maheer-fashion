@@ -1744,7 +1744,7 @@ export default function App() {
                     
                     <div className="flex flex-col gap-3 h-[calc(100vh-14rem)] overflow-y-auto pr-2 pb-10">
                       {displayProducts
-                        .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.sku.toLowerCase().includes(searchQuery.toLowerCase()))
+                        .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || (p.sku || '').toLowerCase().includes(searchQuery.toLowerCase()))
                         .map(p => {
                           const isInCart = cart.find(c => c.product.sku === p.sku);
                           const currentCartQty = isInCart ? isInCart.quantity : 0;
@@ -1752,7 +1752,7 @@ export default function App() {
                           
                           return (
                             <Card 
-                              key={p.sku} 
+                              key={p.sku || `${p.name}-${p.size}-${p.color}`} 
                               className={cn(
                                 "border-none shadow-sm overflow-hidden transition-all flex items-center", 
                                 availableStock > 0 ? "hover:shadow-md cursor-pointer group" : "opacity-60 grayscale cursor-not-allowed"
