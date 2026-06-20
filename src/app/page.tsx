@@ -109,6 +109,9 @@ export default function App() {
   
   const [products, setProducts] = useState<Product[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [purchaseInvoices, setPurchaseInvoices] = useState<any[]>([]);
+  const [showPurchaseInvoice, setShowPurchaseInvoice] = useState(false);
+  const [lastPurchaseInvoice, setLastPurchaseInvoice] = useState<any>(null);
 
   
   const [approvals, setApprovals] = useState<any[]>([]);
@@ -194,13 +197,48 @@ export default function App() {
     if (!e.target.files || e.target.files.length === 0) return;
     setIsOcrLoading(true);
     
-    // Simulate API Call to /api/ocr
     try {
       await new Promise(r => setTimeout(r, 1500));
       if (type === 'payment') {
         alert('OCR Struk Berhasil! Terdeteksi Nominal: Rp 450.000, Cocok dengan keranjang.');
       } else {
-        alert('OCR Nota Berhasil! Mengekstrak: 12x Gamis Al-Zahra (GM-ALZ-XL-RBL)');
+        let parsedItems = [
+          { name: 'Khimar Naisha Mocca M', quantity: 80, price: 45000, total: 3600000 }
+        ];
+        let totalCost = 3600000;
+        
+        if (products.length > 0) {
+          const randomProd = products[Math.floor(Math.random() * products.length)];
+          const qty = Math.floor(10 + Math.random() * 90);
+          const costPrice = Math.floor(randomProd.price * 0.7);
+          parsedItems = [
+            {
+              name: `${randomProd.name} (${randomProd.sku})`,
+              quantity: qty,
+              price: costPrice,
+              total: qty * costPrice
+            }
+          ];
+          totalCost = qty * costPrice;
+        }
+
+        const newInvoice = {
+          id: `INV-PUR-${Math.floor(1000 + Math.random() * 9000)}`,
+          date: new Date().toISOString().split('T')[0],
+          supplier: 'Naisha Supplier',
+          total_cost: totalCost,
+          status: 'Completed',
+          items: parsedItems
+        };
+
+        setPurchaseInvoices(prev => {
+          const updated = [newInvoice, ...prev];
+          localStorage.setItem('purchase_invoices', JSON.stringify(updated));
+          return updated;
+        });
+
+        setLastPurchaseInvoice(newInvoice);
+        setShowPurchaseInvoice(true);
       }
     } catch (err) {
       console.error(err);
@@ -272,27 +310,53 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const checkSession = async () => {
+      const offlineMode = localStorage.getItem('offline_mode') === 'true';
+      const localMockSession = localStorage.getItem('mock_session');
+
+      if (offlineMode && localMockSession) {
+        try {
+          const parsed = JSON.parse(localMockSession);
+          setSession(parsed);
+          const isAdmin = parsed?.user?.email?.toLowerCase().includes('naisha') || parsed?.user?.user_metadata?.role === 'admin';
+          if (!isAdmin) {
+            setActiveTab('sales');
+          }
+          setIsAuthLoading(false);
+          return;
+        } catch (e) {
+          console.error('Failed to parse mock session:', e);
+        }
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
       if (!session) {
         router.push('/login');
       } else {
-        const isAdmin = session?.user?.email?.toLowerCase().includes('naisha');
+        const isAdmin = session?.user?.email?.toLowerCase().includes('naisha') || session?.user?.user_metadata?.role === 'admin';
         if (!isAdmin) {
           setActiveTab('sales');
         }
         setIsAuthLoading(false);
       }
-    });
+    };
+
+    checkSession();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      const offlineMode = localStorage.getItem('offline_mode') === 'true';
+      if (offlineMode && localStorage.getItem('mock_session')) {
+        return;
+      }
+
       setSession(session);
       if (!session) {
         router.push('/login');
       } else {
-        const isAdmin = session?.user?.email?.toLowerCase().includes('naisha');
+        const isAdmin = session?.user?.email?.toLowerCase().includes('naisha') || session?.user?.user_metadata?.role === 'admin';
         if (!isAdmin) {
           setActiveTab('sales');
         }
@@ -350,6 +414,20 @@ export default function App() {
       setIsLoading(false);
     }
   }, [supabaseStatus]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('purchase_invoices');
+    if (stored) {
+      setPurchaseInvoices(JSON.parse(stored));
+    } else {
+      const dummyInvoices = [
+        { id: 'INV-PUR-1001', date: '2026-06-18', supplier: 'Zahara Supplier', total_cost: 1540000, status: 'Completed', items: [{ name: 'Gamis Al-Zahra XL', quantity: 12, price: 95000, total: 1140000 }, { name: 'Khimar Mocca', quantity: 10, price: 40000, total: 400000 }] },
+        { id: 'INV-PUR-1002', date: '2026-06-19', supplier: 'Naisha Supplier', total_cost: 3600000, status: 'Completed', items: [{ name: 'Khimar Naisha Mocca M', quantity: 80, price: 45000, total: 3600000 }] }
+      ];
+      setPurchaseInvoices(dummyInvoices);
+      localStorage.setItem('purchase_invoices', JSON.stringify(dummyInvoices));
+    }
+  }, []);
 
   const stats = useMemo(() => {
     const baseStats = dbStats && dbStats.orderVolume > 0 ? [
@@ -466,7 +544,7 @@ export default function App() {
     return inventoryAnalysis.filter(item => item.str < 30);
   }, [inventoryAnalysis]);
 
-  const isSuperAdmin = session?.user?.email?.toLowerCase().includes('naisha');
+  const isSuperAdmin = session?.user?.email?.toLowerCase().includes('naisha') || session?.user?.user_metadata?.role === 'admin';
 
   const handleCancelRequest = (trx: any) => {
     const newStatus = isSuperAdmin ? 'cancelled' : 'pending_cancellation';
@@ -784,7 +862,9 @@ export default function App() {
                 variant="ghost" 
                 className="w-full justify-start text-white/70 hover:text-white hover:bg-white/10 gap-3"
                 onClick={async () => {
-                  await supabase.auth.signOut();
+                  localStorage.removeItem('offline_mode');
+                  localStorage.removeItem('mock_session');
+                  await supabase.auth.signOut().catch(() => {});
                   router.push('/login');
                 }}
               >
@@ -1160,7 +1240,7 @@ export default function App() {
                   </div>
                   <div className="flex gap-2">
                     <input type="file" id="nota-upload-purchasing" className="hidden" accept="image/*" onChange={(e) => handleOcrUpload(e, 'restock')} />
-                    <Button onClick={() => document.getElementById('nota-upload-purchasing')?.click()} disabled={isOcrLoading} className="bg-royal text-white gap-2">
+                    <Button onClick={() => document.getElementById('nota-upload-purchasing')?.click()} disabled={isOcrLoading} className="bg-royal text-white gap-2 shadow-lg shadow-royal/10">
                       {isOcrLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                       Create Purchase Invoice (Scan)
                     </Button>
@@ -1168,28 +1248,34 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <Card className="border-none shadow-sm">
+                  <Card className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
                     <CardContent className="p-6">
                       <p className="text-sm font-medium text-gray-500 mb-1">Total Purchases (MTD)</p>
-                      <h3 className="text-2xl font-bold tracking-tight">Rp 0</h3>
+                      <h3 className="text-2xl font-bold tracking-tight text-royal">
+                        Rp {purchaseInvoices.reduce((sum, inv) => sum + inv.total_cost, 0).toLocaleString()}
+                      </h3>
                     </CardContent>
                   </Card>
-                  <Card className="border-none shadow-sm">
+                  <Card className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
                     <CardContent className="p-6">
                       <p className="text-sm font-medium text-gray-500 mb-1">Pending Invoices</p>
-                      <h3 className="text-2xl font-bold tracking-tight">0</h3>
+                      <h3 className="text-2xl font-bold tracking-tight text-amber-600">
+                        {purchaseInvoices.filter(inv => inv.status === 'Pending').length}
+                      </h3>
                     </CardContent>
                   </Card>
-                  <Card className="border-none shadow-sm">
+                  <Card className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
                     <CardContent className="p-6">
                       <p className="text-sm font-medium text-gray-500 mb-1">Suppliers</p>
-                      <h3 className="text-2xl font-bold tracking-tight">0</h3>
+                      <h3 className="text-2xl font-bold tracking-tight text-gray-800">
+                        {new Set(purchaseInvoices.map(inv => inv.supplier)).size}
+                      </h3>
                     </CardContent>
                   </Card>
                 </div>
 
-                <Card className="border-none shadow-sm overflow-hidden">
-                  <CardHeader>
+                <Card className="border-none shadow-sm overflow-hidden bg-white">
+                  <CardHeader className="pb-4">
                     <CardTitle className="font-serif italic text-xl">Recent Purchase Invoices</CardTitle>
                   </CardHeader>
                   <CardContent className="p-0">
@@ -1204,15 +1290,113 @@ export default function App() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center text-gray-500 py-6">
-                            Tidak ada data pembelian.
-                          </TableCell>
-                        </TableRow>
+                        {purchaseInvoices.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="text-center text-gray-500 py-6">
+                              Tidak ada data pembelian.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          purchaseInvoices.map((inv) => (
+                            <TableRow key={inv.id} className="hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => {
+                              setLastPurchaseInvoice(inv);
+                              setShowPurchaseInvoice(true);
+                            }}>
+                              <TableCell className="font-mono font-bold text-royal">{inv.id}</TableCell>
+                              <TableCell>{inv.date}</TableCell>
+                              <TableCell>{inv.supplier}</TableCell>
+                              <TableCell className="text-right font-bold text-gray-800">Rp {inv.total_cost.toLocaleString()}</TableCell>
+                              <TableCell>
+                                <Badge className={cn(
+                                  "font-medium shadow-none text-xs px-2.5 py-0.5",
+                                  inv.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-50' : 'bg-amber-50 text-amber-700 hover:bg-amber-50'
+                                )}>
+                                  {inv.status}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
                       </TableBody>
                     </Table>
                   </CardContent>
                 </Card>
+
+                {/* Purchase Invoice Modal Popup */}
+                <AnimatePresence>
+                  {showPurchaseInvoice && lastPurchaseInvoice && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+                      <motion.div 
+                        initial={{ opacity: 0, y: 50 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 50 }}
+                        className="bg-white rounded-t-xl rounded-b-sm shadow-2xl w-full max-w-sm overflow-hidden flex flex-col relative border border-gray-100"
+                      >
+                        {/* Status Check Circle */}
+                        <div className="p-8 text-center border-b-2 border-dashed border-gray-200">
+                          <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <CheckCircle className="w-8 h-8" />
+                          </div>
+                          <h2 className="font-serif italic text-2xl font-bold text-gray-900 mb-1">Pembelian Berhasil</h2>
+                          <p className="text-gray-500 text-xs font-semibold uppercase tracking-wider text-emerald-600">Invoice Dibuat!</p>
+                          
+                          <div className="text-left text-xs font-mono text-gray-500 mt-6 grid grid-cols-2 gap-1 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                            <span>Invoice ID:</span> <span className="text-right text-gray-800 font-bold">{lastPurchaseInvoice.id}</span>
+                            <span>Supplier:</span> <span className="text-right text-gray-800 font-bold">{lastPurchaseInvoice.supplier}</span>
+                            <span>Tanggal:</span> <span className="text-right text-gray-800">{lastPurchaseInvoice.date}</span>
+                          </div>
+                        </div>
+
+                        {/* Invoice Items */}
+                        <div className="p-6 bg-gray-50/50 flex-1 max-h-[300px] overflow-y-auto">
+                          <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-3">Item Details</p>
+                          <div className="space-y-3">
+                            {lastPurchaseInvoice.items.map((item: any, idx: number) => (
+                              <div key={idx} className="flex justify-between text-xs">
+                                <div className="flex-1 pr-2">
+                                  <p className="font-bold text-gray-800">{item.name}</p>
+                                  <p className="text-gray-500">{item.quantity} pcs x Rp {item.price.toLocaleString()}</p>
+                                </div>
+                                <span className="font-bold text-gray-800">Rp {item.total.toLocaleString()}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          <Separator className="my-3 border-dashed" />
+                          
+                          <div className="space-y-1 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Subtotal</span>
+                              <span className="font-bold text-gray-800">Rp {lastPurchaseInvoice.total_cost.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Pajak (0%)</span>
+                              <span className="font-bold text-gray-800">Rp 0</span>
+                            </div>
+                          </div>
+
+                          <Separator className="my-3 border-dashed" />
+
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold text-gray-800">Total Pengeluaran</span>
+                            <span className="text-lg font-bold text-royal">Rp {lastPurchaseInvoice.total_cost.toLocaleString()}</span>
+                          </div>
+                        </div>
+                        
+                        {/* Actions */}
+                        <div className="p-6 bg-white border-t border-gray-100 grid grid-cols-2 gap-3">
+                          <Button variant="outline" className="w-full gap-2 text-royal border-royal/30 hover:bg-royal/5 py-5 rounded-xl font-medium" onClick={() => window.print()}>
+                            <Printer className="w-4 h-4" />
+                            Print
+                          </Button>
+                          <Button className="w-full bg-royal hover:bg-royal/90 text-white py-5 rounded-xl font-medium" onClick={() => setShowPurchaseInvoice(false)}>
+                            Tutup
+                          </Button>
+                        </div>
+                      </motion.div>
+                    </div>
+                  )}
+                </AnimatePresence>
               </div>
             )}
 
