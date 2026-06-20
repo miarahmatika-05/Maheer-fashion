@@ -1771,7 +1771,7 @@ export default function App() {
                       ))}
                     </div>
                     
-                    <div className="flex flex-col gap-3 min-h-[300px] max-h-[70vh] overflow-y-auto pr-2 pb-10">
+                    <div className="flex flex-col gap-4 min-h-[300px] max-h-[70vh] overflow-y-auto pr-2 pb-10">
                       {displayProducts
                         .filter(p =>
                           (selectedCategory === 'Semua' || p.category === selectedCategory) &&
@@ -1786,25 +1786,33 @@ export default function App() {
                             <Card 
                               key={p.sku || `${p.name}-${p.size}-${p.color}`} 
                               className={cn(
-                                "border-none shadow-sm overflow-hidden transition-all flex items-center", 
-                                availableStock > 0 ? "hover:shadow-md cursor-pointer group" : "opacity-60 grayscale cursor-not-allowed"
+                                "border border-gray-100 shadow-sm overflow-hidden transition-all flex items-stretch", 
+                                availableStock > 0 ? "hover:shadow-md hover:border-royal/30 cursor-pointer group" : "opacity-50 grayscale cursor-not-allowed"
                               )}
                               onClick={() => availableStock > 0 && addToCart(p)}
                             >
-                              <div className="w-20 min-h-[5rem] h-full bg-royal/5 flex items-center justify-center shrink-0 overflow-hidden relative">
+                              <div className="w-24 min-h-[6rem] bg-royal/5 flex items-center justify-center shrink-0 overflow-hidden relative">
                                 {p.image_url ? (
                                   <img src={p.image_url} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
                                 ) : (
-                                  <Package className="w-8 h-8 text-royal/30 group-hover:scale-110 transition-transform" />
+                                  <Package className="w-9 h-9 text-royal/30 group-hover:scale-110 transition-transform" />
+                                )}
+                                {isInCart && (
+                                  <div className="absolute top-1 right-1 w-5 h-5 bg-royal rounded-full flex items-center justify-center">
+                                    <span className="text-[10px] text-white font-bold">{currentCartQty}</span>
+                                  </div>
                                 )}
                               </div>
-                              <div className="p-3 flex-1 min-w-0">
-                                <div className="flex justify-between items-start mb-1">
-                                  <Badge variant="outline" className="text-[10px]">{p.category}</Badge>
-                                  <span className="text-xs font-bold text-royal">Rp {(p.price / 1000)}k</span>
+                              <div className="p-4 flex-1 min-w-0 flex flex-col justify-between">
+                                <div>
+                                  <div className="flex justify-between items-start mb-1.5">
+                                    <Badge variant="outline" className="text-[10px]">{p.category}</Badge>
+                                    <span className="text-sm font-bold text-royal">Rp {(p.price).toLocaleString('id-ID')}</span>
+                                  </div>
+                                  <h4 className="font-bold text-sm truncate mt-1">{p.name}</h4>
+                                  <p className="text-[10px] text-gray-400 mt-0.5 font-mono">{p.sku}</p>
                                 </div>
-                                <h4 className="font-bold text-sm truncate">{p.name}</h4>
-                                <div className="flex items-center justify-between mt-2">
+                                <div className="flex items-center justify-between mt-3">
                                   <div className="flex gap-1">
                                     <Badge className="bg-gray-100 text-gray-600 border-none text-[10px]">{p.size}</Badge>
                                     <Badge className="bg-gray-100 text-gray-600 border-none text-[10px]">{p.color}</Badge>
