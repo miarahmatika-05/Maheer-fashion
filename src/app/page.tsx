@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { fetchProducts, fetchRecentTransactions, fetchDashboardStats, processCheckout } from '@/lib/supabaseService';
+import { fetchProducts, fetchRecentTransactions, fetchDashboardStats, processCheckout, updateProductStockDirectly } from '@/lib/supabaseService';
 import { Product, Transaction, CartItem } from '@/types';
 import { 
   LayoutDashboard, 
@@ -113,6 +113,14 @@ export default function App() {
   const [showPurchaseInvoice, setShowPurchaseInvoice] = useState(false);
   const [lastPurchaseInvoice, setLastPurchaseInvoice] = useState<any>(null);
 
+  // Manual purchase invoice states
+  const [isManualInvoiceOpen, setIsManualInvoiceOpen] = useState(false);
+  const [manualSupplier, setManualSupplier] = useState('');
+  const [manualDate, setManualDate] = useState(new Date().toISOString().split('T')[0]);
+  const [manualStatus, setManualStatus] = useState('Completed');
+  const [manualItems, setManualItems] = useState<any[]>([]);
+  const [isSavingManualInvoice, setIsSavingManualInvoice] = useState(false);
+
   
   const [approvals, setApprovals] = useState<any[]>([]);
   const [systemSubTab, setSystemSubTab] = useState('health');
@@ -191,6 +199,127 @@ export default function App() {
     return result.length > 0 ? result : CHANNEL_PERFORMANCE;
   }, [transactions]);
   // ---------------------------------
+
+  // Helper handlers for manual purchase invoice
+  const addManualItem = () => {
+    setManualItems(prev => [
+      ...prev,
+      { sku: '', name: '', quantity: 1, price: 0, total: 0 }
+    ]);
+  };
+
+  const removeManualItem = (index: number) => {
+    setManualItems(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  const updateManualItemField = (index: number, field: string, value: any) => {
+    setManualItems(prev => prev.map((item, idx) => {
+      if (idx !== index) return item;
+      
+      let updatedItem = { ...item, [field]: value };
+      
+      if (field === 'sku') {
+        const selectedProd = products.find(p => p.sku === value);
+        if (selectedProd) {
+          updatedItem.name = selectedProd.name;
+          // default cost price to 70% of retail price
+          updatedItem.price = Math.floor(selectedProd.price * 0.7);
+        } else {
+          updatedItem.name = '';
+          updatedItem.price = 0;
+        }
+      }
+      
+      if (field === 'quantity') {
+        updatedItem.quantity = parseInt(value) || 0;
+      }
+      
+      if (field === 'price') {
+        updatedItem.price = parseInt(value) || 0;
+      }
+      
+      // Recalculate total
+      updatedItem.total = updatedItem.quantity * updatedItem.price;
+      return updatedItem;
+    }));
+  };
+
+  const handleCreateManualInvoice = async () => {
+    if (!manualSupplier.trim()) {
+      alert('Nama Supplier harus diisi.');
+      return;
+    }
+    if (manualItems.length === 0) {
+      alert('Paling sedikit harus ada 1 item dalam invoice.');
+      return;
+    }
+    const hasEmptySku = manualItems.some(item => !item.sku);
+    if (hasEmptySku) {
+      alert('Pilih produk untuk semua item.');
+      return;
+    }
+
+    setIsSavingManualInvoice(true);
+    try {
+      const totalCost = manualItems.reduce((sum, item) => sum + item.total, 0);
+      const newInvoice = {
+        id: `INV-PUR-${Math.floor(1000 + Math.random() * 9000)}`,
+        date: manualDate || new Date().toISOString().split('T')[0],
+        supplier: manualSupplier.trim(),
+        total_cost: totalCost,
+        status: manualStatus,
+        items: manualItems.map(item => ({
+          name: item.name ? `${item.name} (${item.sku})` : item.sku,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.total
+        }))
+      };
+
+      // 1. Update purchaseInvoices in local state and localStorage
+      setPurchaseInvoices(prev => {
+        const updated = [newInvoice, ...prev];
+        localStorage.setItem('purchase_invoices', JSON.stringify(updated));
+        return updated;
+      });
+
+      // 2. Adjust products stocks in local state and database
+      for (const item of manualItems) {
+        const currentProd = products.find(p => p.sku === item.sku);
+        if (currentProd) {
+          const newStock = currentProd.stock + item.quantity;
+          
+          // Update database
+          await updateProductStockDirectly(item.sku, newStock, 'Admin');
+          
+          // Update local state
+          setProducts(prev => prev.map(p => {
+            if (p.sku === item.sku) {
+              return { ...p, stock: newStock };
+            }
+            return p;
+          }));
+        }
+      }
+
+      // 3. Set last purchase invoice details and trigger the success popup
+      setLastPurchaseInvoice(newInvoice);
+      setShowPurchaseInvoice(true);
+
+      // 4. Reset manual entry form states and close modal
+      setManualSupplier('');
+      setManualDate(new Date().toISOString().split('T')[0]);
+      setManualStatus('Completed');
+      setManualItems([]);
+      setIsManualInvoiceOpen(false);
+
+    } catch (err: any) {
+      console.error('Error saving manual purchase invoice:', err);
+      alert('Gagal menyimpan invoice: ' + err.message);
+    } finally {
+      setIsSavingManualInvoice(false);
+    }
+  };
 
   // Handler for OCR Simulation
   const handleOcrUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'restock' | 'payment') => {
@@ -1238,11 +1367,16 @@ export default function App() {
                     <h3 className="text-2xl font-serif font-bold italic">Purchasing & Procurement</h3>
                     <p className="text-gray-500">Manage supplier invoices and stock procurement.</p>
                   </div>
-                  <div className="flex gap-2">
-                    <input type="file" id="nota-upload-purchasing" className="hidden" accept="image/*" onChange={(e) => handleOcrUpload(e, 'restock')} />
-                    <Button onClick={() => document.getElementById('nota-upload-purchasing')?.click()} disabled={isOcrLoading} className="bg-royal text-white gap-2 shadow-lg shadow-royal/10">
-                      {isOcrLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                      Create Purchase Invoice (Scan)
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={() => {
+                      setManualSupplier('');
+                      setManualDate(new Date().toISOString().split('T')[0]);
+                      setManualStatus('Completed');
+                      setManualItems([{ sku: '', name: '', quantity: 1, price: 0, total: 0 }]);
+                      setIsManualInvoiceOpen(true);
+                    }} className="bg-royal text-white gap-2 shadow-lg shadow-royal/10 hover:bg-royal/90">
+                      <Plus className="w-4 h-4" />
+                      Input Invoice Manual
                     </Button>
                   </div>
                 </div>
@@ -1392,6 +1526,182 @@ export default function App() {
                           <Button className="w-full bg-royal hover:bg-royal/90 text-white py-5 rounded-xl font-medium" onClick={() => setShowPurchaseInvoice(false)}>
                             Tutup
                           </Button>
+                        </div>
+                      </motion.div>
+                    </div>
+                  )}
+                </AnimatePresence>
+
+                {/* Manual Purchase Invoice Input Modal */}
+                <AnimatePresence>
+                  {isManualInvoiceOpen && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md overflow-y-auto">
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col my-8 border border-gray-100 max-h-[90vh]"
+                      >
+                        {/* Modal Header */}
+                        <div className="p-6 bg-royal text-white flex justify-between items-center">
+                          <div>
+                            <h2 className="font-serif italic text-2xl font-bold">Input Invoice Pembelian</h2>
+                            <p className="text-xs text-gold-soft uppercase tracking-wider">Catat pengadaan stok produk secara manual</p>
+                          </div>
+                          <button 
+                            onClick={() => setIsManualInvoiceOpen(false)} 
+                            className="hover:bg-white/20 p-2 rounded-full transition-colors text-white"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+
+                        {/* Modal Content */}
+                        <div className="p-6 overflow-y-auto flex-1 space-y-6">
+                          {/* Invoice Meta */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Supplier</label>
+                              <input 
+                                type="text" 
+                                value={manualSupplier} 
+                                onChange={(e) => setManualSupplier(e.target.value)} 
+                                placeholder="Nama Supplier"
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-royal/20 focus:border-royal text-black"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Tanggal</label>
+                              <input 
+                                type="date" 
+                                value={manualDate} 
+                                onChange={(e) => setManualDate(e.target.value)} 
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-royal/20 focus:border-royal text-black"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Status</label>
+                              <select 
+                                value={manualStatus} 
+                                onChange={(e) => setManualStatus(e.target.value)} 
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-royal/20 focus:border-royal bg-white text-black"
+                              >
+                                <option value="Completed">Completed</option>
+                                <option value="Pending">Pending</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <Separator />
+
+                          {/* Items List */}
+                          <div>
+                            <div className="flex justify-between items-center mb-4">
+                              <h4 className="text-sm font-bold text-royal font-serif italic">Item Detail Pembelian</h4>
+                              <Button 
+                                onClick={addManualItem} 
+                                variant="outline" 
+                                size="sm" 
+                                className="text-royal border-royal/30 hover:bg-royal/5 gap-1"
+                              >
+                                <Plus className="w-3.5 h-3.5" /> Tambah Item
+                              </Button>
+                            </div>
+
+                            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                              {manualItems.map((item, idx) => (
+                                <div key={idx} className="flex flex-col md:flex-row gap-3 items-end md:items-center bg-gray-50 p-4 rounded-xl border border-gray-100 text-black">
+                                  <div className="flex-1 min-w-0 w-full">
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Pilih Produk</label>
+                                    <select
+                                      value={item.sku}
+                                      onChange={(e) => updateManualItemField(idx, 'sku', e.target.value)}
+                                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-royal/20 focus:border-royal bg-white text-black"
+                                    >
+                                      <option value="">-- Pilih Produk --</option>
+                                      {displayProducts.map(p => (
+                                        <option key={p.sku} value={p.sku}>
+                                          {p.name} ({p.sku}) - Rp {p.price.toLocaleString()}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  <div className="w-full md:w-32">
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Harga Beli (Rp)</label>
+                                    <input
+                                      type="number"
+                                      value={item.price || ''}
+                                      onChange={(e) => updateManualItemField(idx, 'price', e.target.value)}
+                                      placeholder="0"
+                                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-royal/20 focus:border-royal bg-white text-black"
+                                    />
+                                  </div>
+
+                                  <div className="w-full md:w-20">
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Qty (Pcs)</label>
+                                    <input
+                                      type="number"
+                                      value={item.quantity || ''}
+                                      onChange={(e) => updateManualItemField(idx, 'quantity', e.target.value)}
+                                      placeholder="1"
+                                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-royal/20 focus:border-royal bg-white text-black"
+                                    />
+                                  </div>
+
+                                  <div className="w-full md:w-28 text-right self-center md:self-end pb-2">
+                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Subtotal</span>
+                                    <span className="font-bold text-gray-700 text-sm">
+                                      Rp {item.total.toLocaleString()}
+                                    </span>
+                                  </div>
+
+                                  <button
+                                    onClick={() => removeManualItem(idx)}
+                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors border border-transparent hover:border-red-100 mb-1"
+                                    title="Hapus item"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-6 bg-gray-50 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                          <div className="text-center md:text-left">
+                            <span className="text-xs text-gray-500 uppercase font-semibold tracking-wider">Total Pengeluaran</span>
+                            <h3 className="text-xl font-bold text-royal">
+                              Rp {manualItems.reduce((sum, item) => sum + item.total, 0).toLocaleString()}
+                            </h3>
+                          </div>
+
+                          <div className="flex gap-3 w-full md:w-auto">
+                            <Button 
+                              variant="outline" 
+                              onClick={() => setIsManualInvoiceOpen(false)}
+                              className="flex-1 md:flex-none border-gray-300 text-gray-700 hover:bg-gray-100 py-5 px-6 rounded-xl font-medium"
+                              disabled={isSavingManualInvoice}
+                            >
+                              Batal
+                            </Button>
+                            <Button 
+                              onClick={handleCreateManualInvoice}
+                              className="flex-1 md:flex-none bg-royal hover:bg-royal/90 text-white py-5 px-8 rounded-xl font-medium shadow-lg shadow-royal/10 gap-2"
+                              disabled={isSavingManualInvoice || manualItems.length === 0}
+                            >
+                              {isSavingManualInvoice ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  Menyimpan...
+                                </>
+                              ) : (
+                                'Simpan Invoice'
+                              )}
+                            </Button>
+                          </div>
                         </div>
                       </motion.div>
                     </div>
